@@ -18,7 +18,7 @@ prod-build:
 	@echo "Building production images..."
 	@. ./.env && \
 	docker build -t $$DOCKER_USERNAME/rustfs-manager-backend:latest ./backend && \
-	docker build -t $$DOCKER_USERNAME/rustfs-manager-frontend:latest ./frontend
+	docker build --build-arg VITE_API_URL=https://storage-manager.zendevz.com/api/v1 -t $$DOCKER_USERNAME/rustfs-manager-frontend:latest ./frontend
 	@echo "Build complete!"
 
 prod-push:
