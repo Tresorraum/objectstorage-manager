@@ -46,7 +46,7 @@ export default function Login() {
             {isLogin ? 'Sign in to your account' : 'Create your account'}
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            RustFS Manager Dashboard
+            Storage Manager Dashboard
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
