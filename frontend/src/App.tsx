@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Instances from './pages/Instances';
 import Backups from './pages/Backups';
 import Settings from './pages/Settings';
+import Subscribe from './pages/Subscribe';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ function AppRoutes() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/instances" element={<Instances />} />
                 <Route path="/backups" element={<Backups />} />
+                <Route path="/subscribe" element={<Subscribe />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>
             </Layout>

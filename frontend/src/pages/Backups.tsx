@@ -68,6 +68,7 @@ export default function Backups() {
   const [showModal, setShowModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
   const [showBackupRuns, setShowBackupRuns] = useState(false);
+  const [showEnterpriseModal, setShowEnterpriseModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -237,6 +238,13 @@ export default function Backups() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if server backup type is selected
+    if (formData.backup_type === 'server') {
+      setShowEnterpriseModal(true);
+      return;
+    }
+
     const payload: any = {
       ...formData,
       rustfs_instance_id: parseInt(formData.rustfs_instance_id),
@@ -251,6 +259,12 @@ export default function Backups() {
     }
 
     createMutation.mutate(payload);
+  };
+
+  const handleEnterpriseConfirm = () => {
+    setShowEnterpriseModal(false);
+    // Navigate to subscription page
+    window.location.href = '/subscribe';
   };
 
   const handleRun = (id: number) => {
@@ -1086,6 +1100,79 @@ export default function Backups() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Enterprise Modal */}
+      <Modal
+        isOpen={showEnterpriseModal}
+        onClose={() => setShowEnterpriseModal(false)}
+        title="Enterprise Feature"
+        size="md"
+      >
+        <div className="space-y-6">
+          {/* Icon */}
+          <div className="flex justify-center">
+            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center">
+              <ServerIcon className="h-8 w-8 text-indigo-600" />
+            </div>
+          </div>
+
+          {/* Message */}
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Server Storage Backup
+            </h3>
+            <p className="text-sm text-gray-600">
+              Server storage backups are available with our Enterprise plan. Upgrade now to unlock this feature along with many other benefits.
+            </p>
+          </div>
+
+          {/* Features */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Enterprise Features Include:</h4>
+            <ul className="space-y-2 text-sm text-gray-600">
+              <li className="flex items-start gap-2">
+                <CheckIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
+                <span>Unlimited server storage backups</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
+                <span>Advanced compression options</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
+                <span>Priority support</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
+                <span>Custom retention policies</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Note */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs text-blue-800">
+              <strong>Note:</strong> Bucket-to-bucket backups remain free for all users.
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <button
+              onClick={() => setShowEnterpriseModal(false)}
+              className="btn-secondary flex-1"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleEnterpriseConfirm}
+              className="btn-primary flex-1"
+            >
+              View Enterprise Plans
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
