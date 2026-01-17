@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   PlusIcon, 
@@ -11,7 +11,11 @@ import {
   FolderIcon,
   ArrowPathIcon,
   ArrowDownTrayIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  CheckIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
@@ -64,6 +68,12 @@ export default function Backups() {
   const [showModal, setShowModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
   const [showBackupRuns, setShowBackupRuns] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectedJobs, setSelectedJobs] = useState<number[]>([]);
+  const [sortField, setSortField] = useState<string>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [formData, setFormData] = useState({
     name: '',
     rustfs_instance_id: '',
@@ -156,6 +166,75 @@ export default function Backups() {
     setShowBackupRuns(true);
   };
 
+  const toggleJobSelection = (jobId: number) => {
+    setSelectedJobs(prev => 
+      prev.includes(jobId) 
+        ? prev.filter(id => id !== jobId)
+        : [...prev, jobId]
+    );
+  };
+
+  const toggleAllJobs = () => {
+    if (selectedJobs.length === filteredAndSortedJobs.length) {
+      setSelectedJobs([]);
+    } else {
+      setSelectedJobs(filteredAndSortedJobs.map(job => job.id));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedJobs.length} backup job(s)?`)) {
+      selectedJobs.forEach(id => deleteMutation.mutate(id));
+      setSelectedJobs([]);
+    }
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Filter and sort jobs
+  const filteredAndSortedJobs = useMemo(() => {
+    if (!backupJobs) return [];
+
+    let filtered = backupJobs.filter(job => {
+      const matchesSearch = job.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           job.source_bucket.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           job.rustfs_instance.name.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
+      const matchesType = typeFilter === 'all' || job.backup_type === typeFilter;
+
+      return matchesSearch && matchesStatus && matchesType;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortField as keyof BackupJob];
+      let bVal: any = b[sortField as keyof BackupJob];
+
+      if (sortField === 'instance') {
+        aVal = a.rustfs_instance.name;
+        bVal = b.rustfs_instance.name;
+      }
+
+      if (typeof aVal === 'string') {
+        return sortDirection === 'asc' 
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+
+      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+
+    return filtered;
+  }, [backupJobs, searchQuery, statusFilter, typeFilter, sortField, sortDirection]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const payload: any = {
@@ -194,11 +273,12 @@ export default function Backups() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Backup Jobs</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Automated backup jobs that download and archive RustFS buckets to server storage
+            Manage automated backup jobs with advanced filtering and bulk actions
           </p>
         </div>
         <button
@@ -210,207 +290,324 @@ export default function Backups() {
         </button>
       </div>
 
-      {/* Technical Info Banner */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-        <div className="flex">
-          <ServerIcon className="h-5 w-5 text-indigo-600 flex-shrink-0 mt-0.5" />
-          <div className="ml-3">
-            <h3 className="text-sm font-semibold text-indigo-900">How Backups Work</h3>
-            <div className="mt-2 text-xs text-indigo-800 space-y-1">
-              <p>• <strong>Server Backup:</strong> Downloads objects from RustFS and creates compressed archives (.tar.gz) on server storage</p>
-              <p>• <strong>Bucket Backup:</strong> Copies objects directly from source bucket to another object storage bucket (no compression)</p>
-              <p>• Scheduled jobs run automatically based on cron expressions, or run manually anytime</p>
-              <p>• Old backups are automatically cleaned up based on retention policy</p>
+      {/* Filters and Search Bar */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="md:col-span-2">
+            <div className="relative">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, bucket, or instance..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <select
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="running">Running</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          {/* Type Filter */}
+          <div>
+            <select
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">All Types</option>
+              <option value="server">Server</option>
+              <option value="bucket">Bucket</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        {selectedJobs.length > 0 && (
+          <div className="mt-4 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+            <span className="text-sm font-medium text-indigo-900">
+              {selectedJobs.length} job(s) selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={handleBulkDelete}
+                className="inline-flex items-center px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <TrashIcon className="h-4 w-4 mr-1" />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedJobs([])}
+                className="inline-flex items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <XMarkIcon className="h-4 w-4 mr-1" />
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total Jobs</p>
+              <p className="text-2xl font-bold text-gray-900">{backupJobs?.length || 0}</p>
+            </div>
+            <ServerIcon className="h-10 w-10 text-indigo-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Running</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {backupJobs?.filter(j => j.status === 'running').length || 0}
+              </p>
+            </div>
+            <ArrowPathIcon className="h-10 w-10 text-blue-600 animate-spin" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Completed</p>
+              <p className="text-2xl font-bold text-green-600">
+                {backupJobs?.filter(j => j.status === 'completed').length || 0}
+              </p>
+            </div>
+            <CheckIcon className="h-10 w-10 text-green-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Failed</p>
+              <p className="text-2xl font-bold text-red-600">
+                {backupJobs?.filter(j => j.status === 'failed').length || 0}
+              </p>
+            </div>
+            <ExclamationTriangleIcon className="h-10 w-10 text-red-600" />
           </div>
         </div>
       </div>
 
-      {/* Backup Jobs Grid */}
-      {backupJobs && backupJobs.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-xl border-2 border-dashed border-gray-300">
-          <ServerIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No backup jobs</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by creating a new backup job.</p>
-          <div className="mt-6">
-            <button
-              onClick={() => setShowModal(true)}
-              className="btn-primary"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Create Backup Job
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {backupJobs?.map((job) => (
-            <div key={job.id} className="card p-6 space-y-4">
-              {/* Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-lg font-bold text-gray-900">{job.name}</h3>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                      job.status === 'completed' 
-                        ? 'bg-green-100 text-green-800'
-                        : job.status === 'running'
-                        ? 'bg-blue-100 text-blue-800 animate-pulse'
-                        : job.status === 'failed'
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {job.status === 'running' && (
-                        <ArrowPathIcon className="h-3 w-3 mr-1 animate-spin" />
-                      )}
-                      {job.status}
-                    </span>
-                    {!job.enabled && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                        Disabled
-                      </span>
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedJobs.length === filteredAndSortedJobs.length && filteredAndSortedJobs.length > 0}
+                    onChange={toggleAllJobs}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Job Name
+                    {sortField === 'name' && (
+                      <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
                     )}
                   </div>
-                </div>
-              </div>
-
-              {/* Instance & Bucket Info */}
-              <div className="space-y-3 pt-3 border-t border-gray-200">
-                <div className="flex items-center text-sm">
-                  <ServerIcon className="h-5 w-5 text-indigo-600 mr-3 flex-shrink-0" />
-                  <div>
-                    <span className="text-gray-500">Source Instance:</span>
-                    <span className="ml-2 font-medium text-gray-900">{job.rustfs_instance.name}</span>
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('instance')}
+                >
+                  <div className="flex items-center gap-1">
+                    Source
+                    {sortField === 'instance' && (
+                      <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center text-sm">
-                  <FolderIcon className="h-5 w-5 text-indigo-600 mr-3 flex-shrink-0" />
-                  <div>
-                    <span className="text-gray-500">Source Bucket:</span>
-                    <span className="ml-2 font-medium text-gray-900">{job.source_bucket}</span>
-                  </div>
-                </div>
-                {job.backup_type === 'server' ? (
-                  <div className="flex items-center text-sm">
-                    <FolderIcon className="h-5 w-5 text-indigo-600 mr-3 flex-shrink-0" />
-                    <div>
-                      <span className="text-gray-500">Storage Path:</span>
-                      <span className="ml-2 font-mono text-xs text-gray-900 break-all">{job.destination_path}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center text-sm">
-                      <ServerIcon className="h-5 w-5 text-green-600 mr-3 flex-shrink-0" />
-                      <div>
-                        <span className="text-gray-500">Dest. Instance:</span>
-                        <span className="ml-2 font-medium text-gray-900">{job.destination_instance?.name || 'N/A'}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <FolderIcon className="h-5 w-5 text-green-600 mr-3 flex-shrink-0" />
-                      <div>
-                        <span className="text-gray-500">Dest. Bucket:</span>
-                        <span className="ml-2 font-medium text-gray-900">{job.destination_bucket}</span>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Schedule & Retention */}
-              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-200">
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center text-xs text-gray-500 mb-1">
-                    <CalendarIcon className="h-4 w-4 mr-1" />
-                    Schedule
-                  </div>
-                  <p className="text-sm font-semibold text-gray-900 font-mono">
-                    {job.schedule || 'Manual'}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center text-xs text-gray-500 mb-1">
-                    <ClockIcon className="h-4 w-4 mr-1" />
-                    Retention
-                  </div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {job.retention_days} days
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center text-xs text-gray-500 mb-1">
-                    <DocumentTextIcon className="h-4 w-4 mr-1" />
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Destination
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('backup_type')}
+                >
+                  <div className="flex items-center gap-1">
                     Type
+                    {sortField === 'backup_type' && (
+                      <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </div>
-                  <p className="text-sm font-semibold text-gray-900 capitalize">
-                    {job.backup_type}
-                    {job.backup_type === 'server' && ` (${job.compression_type.toUpperCase()})`}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center text-xs text-gray-500 mb-1">
-                    <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
-                    Backups
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Schedule
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center gap-1">
+                    Status
+                    {sortField === 'status' && (
+                      <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
                   </div>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {job.backup_runs?.length || 0} runs
-                  </p>
-                </div>
-              </div>
-
-              {/* Last Run Info */}
-              {job.last_run && (
-                <div className="text-xs text-gray-500 pt-2 border-t border-gray-200">
-                  Last run: {new Date(job.last_run).toLocaleString()}
-                </div>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Run
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredAndSortedJobs.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center">
+                    <ServerIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No backup jobs found</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {searchQuery || statusFilter !== 'all' || typeFilter !== 'all'
+                        ? 'Try adjusting your filters'
+                        : 'Get started by creating a new backup job'}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredAndSortedJobs.map((job) => (
+                  <tr key={job.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedJobs.includes(job.id)}
+                        onChange={() => toggleJobSelection(job.id)}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{job.name}</div>
+                          {!job.enabled && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 mt-1">
+                              Disabled
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">{job.rustfs_instance.name}</div>
+                      <div className="text-xs text-gray-500">{job.source_bucket}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {job.backup_type === 'server' ? (
+                        <div className="text-xs">
+                          <div className="text-gray-900 font-mono">{job.destination_path}</div>
+                        </div>
+                      ) : (
+                        <div className="text-xs">
+                          <div className="text-gray-900">{job.destination_instance?.name || 'N/A'}</div>
+                          <div className="text-gray-500">{job.destination_bucket}</div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        job.backup_type === 'server'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {job.backup_type === 'server' ? 'Server' : 'Bucket'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-xs font-mono text-gray-900">
+                        {job.schedule || 'Manual'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        job.status === 'completed' 
+                          ? 'bg-green-100 text-green-800'
+                          : job.status === 'running'
+                          ? 'bg-blue-100 text-blue-800'
+                          : job.status === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {job.status === 'running' && (
+                          <ArrowPathIcon className="h-3 w-3 mr-1 animate-spin" />
+                        )}
+                        {job.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-500">
+                      {job.last_run ? new Date(job.last_run).toLocaleString() : 'Never'}
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleRun(job.id)}
+                          disabled={runMutation.isPending || job.status === 'running'}
+                          className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Run backup"
+                        >
+                          <PlayIcon className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => viewBackupRuns(job)}
+                          className="text-gray-600 hover:text-gray-900"
+                          title="View history"
+                        >
+                          <DocumentTextIcon className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(job.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Delete job"
+                        >
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
-
-              {/* Error Message */}
-              {job.status === 'failed' && job.last_error_msg && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="flex">
-                    <ExclamationTriangleIcon className="h-5 w-5 text-red-500 flex-shrink-0" />
-                    <div className="ml-3">
-                      <h4 className="text-sm font-semibold text-red-800">
-                        Backup Failed
-                      </h4>
-                      <p className="mt-1 text-xs text-red-700 break-words">
-                        {job.last_error_msg}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-3 border-t border-gray-200">
-                <button
-                  onClick={() => handleRun(job.id)}
-                  disabled={runMutation.isPending || job.status === 'running'}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-2 border border-indigo-600 text-sm font-medium rounded-lg text-indigo-600 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                >
-                  <PlayIcon className="h-4 w-4 mr-2" />
-                  Run Backup
-                </button>
-                <button
-                  onClick={() => viewBackupRuns(job)}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all duration-200"
-                >
-                  <DocumentTextIcon className="h-4 w-4 mr-2" />
-                  History
-                </button>
-                <button
-                  onClick={() => handleDelete(job.id)}
-                  className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 transition-all duration-200"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {/* Table Footer with Results Count */}
+        {filteredAndSortedJobs.length > 0 && (
+          <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
+            <p className="text-sm text-gray-700">
+              Showing <span className="font-medium">{filteredAndSortedJobs.length}</span> of{' '}
+              <span className="font-medium">{backupJobs?.length || 0}</span> backup jobs
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Modal */}
       <Modal
