@@ -4,6 +4,7 @@ import { PlusIcon, TrashIcon, PencilIcon, InformationCircleIcon, CheckCircleIcon
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import Modal from '../components/Modal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RustFSInstance {
   id: number;
@@ -18,7 +19,9 @@ interface RustFSInstance {
 }
 
 export default function Instances() {
+  const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editingInstance, setEditingInstance] = useState<RustFSInstance | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -145,6 +148,11 @@ export default function Instances() {
         <div className="mt-4 sm:mt-0">
           <button
             onClick={() => {
+              // Check if user is premium or has less than 1 instance
+              if (!user?.is_premium && instances && instances.length >= 1) {
+                setShowUpgradeModal(true);
+                return;
+              }
               setEditingInstance(null);
               resetForm();
               setShowModal(true);
@@ -409,6 +417,37 @@ export default function Instances() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Upgrade Modal */}
+      <Modal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Upgrade to Premium"
+      >
+        <div className="text-center py-6">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Instance Limit Reached</h3>
+          <p className="text-sm text-gray-600 mb-6">
+            Free users can only create 1 instance. Upgrade to premium for unlimited instances and more features!
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => setShowUpgradeModal(false)}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => window.location.href = '/subscribe'}
+              className="btn-primary"
+            >
+              Upgrade to Premium
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

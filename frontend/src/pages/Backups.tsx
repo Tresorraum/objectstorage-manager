@@ -20,6 +20,7 @@ import {
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import Modal from '../components/Modal';
+import { useAuth } from '../contexts/AuthContext';
 
 interface BackupJob {
   id: number;
@@ -65,10 +66,12 @@ interface RustFSInstance {
 }
 
 export default function Backups() {
+  const { user } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState<BackupJob | null>(null);
   const [showBackupRuns, setShowBackupRuns] = useState(false);
   const [showEnterpriseModal, setShowEnterpriseModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -239,8 +242,8 @@ export default function Backups() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check if server backup type is selected
-    if (formData.backup_type === 'server') {
+    // Check if server backup type is selected and user is not premium
+    if (formData.backup_type === 'server' && !user?.is_premium) {
       setShowEnterpriseModal(true);
       return;
     }
@@ -296,7 +299,14 @@ export default function Backups() {
           </p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            // Check if user is premium or has less than 5 backup jobs. this needs to be handled from backend
+            if (!user?.is_premium && backupJobs && backupJobs.length >= 2) {
+              setShowUpgradeModal(true);
+              return;
+            }
+            setShowModal(true);
+          }}
           className="btn-primary w-full sm:w-auto"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
@@ -1106,7 +1116,7 @@ export default function Backups() {
       <Modal
         isOpen={showEnterpriseModal}
         onClose={() => setShowEnterpriseModal(false)}
-        title="Enterprise Feature"
+        title="Premium Feature"
         size="md"
       >
         <div className="space-y-6">
@@ -1123,13 +1133,13 @@ export default function Backups() {
               Server Storage Backup
             </h3>
             <p className="text-sm text-gray-600">
-              Server storage backups are available with our Enterprise plan. Upgrade now to unlock this feature along with many other benefits.
+              Server storage backups are available with our Premium plan. Upgrade now to unlock this feature along with many other benefits.
             </p>
           </div>
 
           {/* Features */}
           <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Enterprise Features Include:</h4>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Premium Features Include:</h4>
             <ul className="space-y-2 text-sm text-gray-600">
               <li className="flex items-start gap-2">
                 <CheckIcon className="h-5 w-5 text-green-600 flex-shrink-0" />
@@ -1169,7 +1179,38 @@ export default function Backups() {
               onClick={handleEnterpriseConfirm}
               className="btn-primary flex-1"
             >
-              View Enterprise Plans
+              View Premium Plans
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Upgrade Modal for Backup Limit */}
+      <Modal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Upgrade to Premium"
+      >
+        <div className="text-center py-6">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-4">
+            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" />
+          </div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Backup Job Limit Reached</h3>
+          <p className="text-sm text-gray-600 mb-6">
+            Free users can only create 5 backup jobs. Upgrade to premium for unlimited backup jobs and more features!
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => setShowUpgradeModal(false)}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => window.location.href = '/subscribe'}
+              className="btn-primary"
+            >
+              Upgrade to Premium
             </button>
           </div>
         </div>
