@@ -7,7 +7,7 @@ dev-build:
 
 dev:
 	@echo "Starting local development..."
-	docker compose up
+	docker compose up -d
 
 dev-stop:
 	@echo "Stopping local development..."

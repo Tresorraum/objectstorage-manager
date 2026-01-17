@@ -13,6 +13,9 @@ services:
       - rustfs-manager
 
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: ${DOCKER_USERNAME}/rustfs-manager-backend:latest
     container_name: rustfs-manager-api
     restart: unless-stopped
@@ -36,6 +39,9 @@ services:
       - rustfs-manager
 
   frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     image: ${DOCKER_USERNAME}/rustfs-manager-frontend:latest
     container_name: rustfs-manager-ui
     restart: unless-stopped
