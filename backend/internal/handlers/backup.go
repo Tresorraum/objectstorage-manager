@@ -18,14 +18,17 @@ func NewBackupHandler(backupService *services.BackupService) *BackupHandler {
 }
 
 type CreateBackupJobRequest struct {
-	Name             string `json:"name" binding:"required"`
-	RustFSInstanceID uint   `json:"rustfs_instance_id" binding:"required"`
-	SourceBucket     string `json:"source_bucket" binding:"required"`
-	DestinationPath  string `json:"destination_path" binding:"required"`
-	Schedule         string `json:"schedule"`
-	Enabled          bool   `json:"enabled"`
-	RetentionDays    int    `json:"retention_days"`
-	CompressionType  string `json:"compression_type"`
+	Name                  string `json:"name" binding:"required"`
+	RustFSInstanceID      uint   `json:"rustfs_instance_id" binding:"required"`
+	SourceBucket          string `json:"source_bucket" binding:"required"`
+	BackupType            string `json:"backup_type" binding:"required"` // "server" or "bucket"
+	DestinationPath       string `json:"destination_path"`
+	DestinationInstanceID *uint  `json:"destination_instance_id"`
+	DestinationBucket     string `json:"destination_bucket"`
+	Schedule              string `json:"schedule"`
+	Enabled               bool   `json:"enabled"`
+	RetentionDays         int    `json:"retention_days"`
+	CompressionType       string `json:"compression_type"`
 }
 
 type RestoreBackupRequest struct {
@@ -53,6 +56,29 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 		return
 	}
 
+	// Validate backup type
+	if req.BackupType != "server" && req.BackupType != "bucket" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "backup_type must be 'server' or 'bucket'"})
+		return
+	}
+
+	// Validate required fields based on backup type
+	if req.BackupType == "server" && req.DestinationPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "destination_path is required for server backups"})
+		return
+	}
+
+	if req.BackupType == "bucket" {
+		if req.DestinationInstanceID == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "destination_instance_id is required for bucket backups"})
+			return
+		}
+		if req.DestinationBucket == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "destination_bucket is required for bucket backups"})
+			return
+		}
+	}
+
 	// Set defaults
 	if req.RetentionDays == 0 {
 		req.RetentionDays = 30
@@ -62,14 +88,17 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	}
 
 	job := &models.BackupJob{
-		Name:             req.Name,
-		RustFSInstanceID: req.RustFSInstanceID,
-		SourceBucket:     req.SourceBucket,
-		DestinationPath:  req.DestinationPath,
-		Schedule:         req.Schedule,
-		Enabled:          req.Enabled,
-		RetentionDays:    req.RetentionDays,
-		CompressionType:  req.CompressionType,
+		Name:                  req.Name,
+		RustFSInstanceID:      req.RustFSInstanceID,
+		SourceBucket:          req.SourceBucket,
+		BackupType:            req.BackupType,
+		DestinationPath:       req.DestinationPath,
+		DestinationInstanceID: req.DestinationInstanceID,
+		DestinationBucket:     req.DestinationBucket,
+		Schedule:              req.Schedule,
+		Enabled:               req.Enabled,
+		RetentionDays:         req.RetentionDays,
+		CompressionType:       req.CompressionType,
 	}
 
 	if err := h.backupService.CreateBackupJob(job); err != nil {
@@ -123,7 +152,10 @@ func (h *BackupHandler) UpdateJob(c *gin.Context) {
 	job.Name = req.Name
 	job.RustFSInstanceID = req.RustFSInstanceID
 	job.SourceBucket = req.SourceBucket
+	job.BackupType = req.BackupType
 	job.DestinationPath = req.DestinationPath
+	job.DestinationInstanceID = req.DestinationInstanceID
+	job.DestinationBucket = req.DestinationBucket
 	job.Schedule = req.Schedule
 	job.Enabled = req.Enabled
 	job.RetentionDays = req.RetentionDays
