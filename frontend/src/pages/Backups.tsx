@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon, PlayIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PlayIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
 
@@ -17,6 +17,7 @@ interface BackupJob {
   last_run?: string;
   next_run?: string;
   status: string;
+  last_error_msg?: string;
   rustfs_instance: {
     name: string;
   };
@@ -205,6 +206,24 @@ export default function Backups() {
                     )}
                   </div>
                 </div>
+                {/* Error Message Display */}
+                {job.status === 'failed' && job.last_error_msg && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-medium text-red-800">
+                          Last Backup Failed
+                        </h4>
+                        <div className="mt-1 text-sm text-red-700">
+                          <p className="break-words">{job.last_error_msg}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </li>
           ))}

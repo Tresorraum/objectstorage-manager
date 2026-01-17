@@ -60,6 +60,17 @@ type BackupJob struct {
 	// Relationships
 	RustFSInstance RustFSInstance `json:"rustfs_instance,omitempty"`
 	BackupRuns     []BackupRun    `json:"backup_runs,omitempty"`
+	
+	// Computed fields
+	LastErrorMsg   string `json:"last_error_msg" gorm:"-"`
+}
+
+// GetLastErrorMsg returns the error message from the most recent backup run
+func (bj *BackupJob) GetLastErrorMsg() string {
+	if len(bj.BackupRuns) > 0 {
+		return bj.BackupRuns[0].ErrorMsg
+	}
+	return ""
 }
 
 // BackupRun represents an execution of a backup job

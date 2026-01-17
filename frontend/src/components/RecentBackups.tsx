@@ -7,6 +7,7 @@ interface BackupJob {
   name: string;
   status: string;
   last_run?: string;
+  last_error_msg?: string;
   rustfs_instance: {
     name: string;
   };
@@ -61,24 +62,35 @@ export default function RecentBackups() {
         const statusColor = statusColors[backup.status as keyof typeof statusColors] || 'text-gray-500';
         
         return (
-          <div key={backup.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center space-x-3">
-              <StatusIcon className={`h-5 w-5 ${statusColor}`} />
-              <div>
-                <p className="text-sm font-medium text-gray-900">{backup.name}</p>
-                <p className="text-xs text-gray-500">{backup.rustfs_instance?.name}</p>
+          <div key={backup.id} className="bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-3">
+              <div className="flex items-center space-x-3">
+                <StatusIcon className={`h-5 w-5 ${statusColor}`} />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{backup.name}</p>
+                  <p className="text-xs text-gray-500">{backup.rustfs_instance?.name}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className={`text-xs font-medium capitalize ${statusColor}`}>
+                  {backup.status}
+                </p>
+                {backup.last_run && (
+                  <p className="text-xs text-gray-500">
+                    {new Date(backup.last_run).toLocaleDateString()}
+                  </p>
+                )}
               </div>
             </div>
-            <div className="text-right">
-              <p className={`text-xs font-medium capitalize ${statusColor}`}>
-                {backup.status}
-              </p>
-              {backup.last_run && (
-                <p className="text-xs text-gray-500">
-                  {new Date(backup.last_run).toLocaleDateString()}
-                </p>
-              )}
-            </div>
+            {/* Error Message for Failed Backups */}
+            {backup.status === 'failed' && backup.last_error_msg && (
+              <div className="px-3 pb-3">
+                <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                  <p className="font-medium">Error:</p>
+                  <p className="mt-1 break-words">{backup.last_error_msg}</p>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

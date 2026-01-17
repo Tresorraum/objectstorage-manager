@@ -48,11 +48,25 @@ func (s *BackupService) GetBackupJob(id uint) (*models.BackupJob, error) {
 	return &job, err
 }
 
-// ListBackupJobs returns all backup jobs
+// ListBackupJobs returns all backup jobs with latest backup run info
 func (s *BackupService) ListBackupJobs() ([]models.BackupJob, error) {
 	var jobs []models.BackupJob
-	err := s.db.Preload("RustFSInstance").Find(&jobs).Error
-	return jobs, err
+	err := s.db.Preload("RustFSInstance").
+		Preload("BackupRuns", func(db *gorm.DB) *gorm.DB {
+			return db.Order("started_at DESC").Limit(1)
+		}).
+		Find(&jobs).Error
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// Populate computed fields
+	for i := range jobs {
+		jobs[i].LastErrorMsg = jobs[i].GetLastErrorMsg()
+	}
+	
+	return jobs, nil
 }
 
 // UpdateBackupJob updates a backup job
@@ -132,14 +146,35 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 		return
 	}
 
-	// Create backup file
+	// Test connection first by trying to list objects
+	ctx := context.Background()
+	objectCh := client.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
+
+	// Collect objects first to ensure connection works
+	var objects []minio.ObjectInfo
+	for object := range objectCh {
+		if object.Err != nil {
+			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to list objects: %v", object.Err), 0, 0, "")
+			s.updateBackupJobStatus(job.ID, "failed")
+			return
+		}
+		objects = append(objects, object)
+	}
+
+	// Only create backup file after successful object listing
 	backupFile, err := os.Create(backupPath)
 	if err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to create backup file: %v", err), 0, 0, "")
 		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
-	defer backupFile.Close()
+	defer func() {
+		backupFile.Close()
+		// Clean up file if backup failed
+		if run.Status == "failed" {
+			os.Remove(backupPath)
+		}
+	}()
 
 	// Create gzip writer if compression is enabled
 	var writer io.Writer = backupFile
@@ -153,20 +188,11 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	tarWriter := tar.NewWriter(writer)
 	defer tarWriter.Close()
 
-	// List and backup objects
-	ctx := context.Background()
-	objectCh := client.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
-
 	var filesCount int64
 	var bytesCount int64
 
-	for object := range objectCh {
-		if object.Err != nil {
-			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to list objects: %v", object.Err), filesCount, bytesCount, "")
-			s.updateBackupJobStatus(job.ID, "failed")
-			return
-		}
-
+	// Process the collected objects
+	for _, object := range objects {
 		// Get object
 		obj, err := client.GetObject(ctx, job.SourceBucket, object.Key, minio.GetObjectOptions{})
 		if err != nil {
