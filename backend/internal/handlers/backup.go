@@ -47,10 +47,18 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	}
 
 	// Check if user is premium
-	isPremium, _ := c.Get("is_premium")
+	isPremium, exists := c.Get("is_premium")
+	if !exists {
+		isPremium = false
+	}
 	
 	// Check backup type restrictions
-	if req.BackupType == "server" && !isPremium.(bool) {
+	isPremiumBool, ok := isPremium.(bool)
+	if !ok {
+		isPremiumBool = false
+	}
+	
+	if req.BackupType == "server" && !isPremiumBool {
 		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrServerBackupRestricted))
 		return
 	}
