@@ -3,12 +3,18 @@ services:
     image: postgres:15-alpine
     container_name: rustfs-manager-db
     restart: unless-stopped
+
+    ports:
+      - "5432:5432"
+
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     networks:
       - rustfs-manager
 
