@@ -363,47 +363,55 @@ export default function Backups() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-sm p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Total Jobs</p>
-              <p className="text-2xl font-bold text-gray-900">{backupJobs?.length || 0}</p>
+              <p className="text-sm font-medium text-indigo-100">Total Jobs</p>
+              <p className="text-3xl font-bold mt-2">{backupJobs?.length || 0}</p>
             </div>
-            <ServerIcon className="h-10 w-10 text-indigo-600" />
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <ServerIcon className="h-8 w-8" />
+            </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-sm p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Running</p>
-              <p className="text-2xl font-bold text-blue-600">
+              <p className="text-sm font-medium text-blue-100">Running</p>
+              <p className="text-3xl font-bold mt-2">
                 {backupJobs?.filter(j => j.status === 'running').length || 0}
               </p>
             </div>
-            <ArrowPathIcon className="h-10 w-10 text-blue-600 animate-spin" />
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <ArrowPathIcon className="h-8 w-8" />
+            </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-sm p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Completed</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-sm font-medium text-green-100">Completed</p>
+              <p className="text-3xl font-bold mt-2">
                 {backupJobs?.filter(j => j.status === 'completed').length || 0}
               </p>
             </div>
-            <CheckIcon className="h-10 w-10 text-green-600" />
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <CheckIcon className="h-8 w-8" />
+            </div>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl shadow-sm p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Failed</p>
-              <p className="text-2xl font-bold text-red-600">
+              <p className="text-sm font-medium text-red-100">Failed</p>
+              <p className="text-3xl font-bold mt-2">
                 {backupJobs?.filter(j => j.status === 'failed').length || 0}
               </p>
             </div>
-            <ExclamationTriangleIcon className="h-10 w-10 text-red-600" />
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <ExclamationTriangleIcon className="h-8 w-8" />
+            </div>
           </div>
         </div>
       </div>
@@ -557,9 +565,9 @@ export default function Backups() {
                           : 'bg-gray-100 text-gray-800'
                       }`}>
                         {job.status === 'running' && (
-                          <ArrowPathIcon className="h-3 w-3 mr-1 animate-spin" />
+                          <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mr-2 animate-pulse"></span>
                         )}
-                        {job.status}
+                        {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-500">
