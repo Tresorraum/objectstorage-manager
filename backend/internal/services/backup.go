@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -45,7 +46,11 @@ func (s *BackupService) CreateBackupJob(job *models.BackupJob) error {
 func (s *BackupService) GetBackupJob(id uint) (*models.BackupJob, error) {
 	var job models.BackupJob
 	err := s.db.Preload("RustFSInstance").Preload("BackupRuns").First(&job, id).Error
-	return &job, err
+	if err != nil {
+		return nil, err
+	}
+	
+	return &job, nil
 }
 
 // ListBackupJobs returns all backup jobs with latest backup run info
@@ -113,7 +118,9 @@ func (s *BackupService) RunBackupJob(jobID uint) (*models.BackupRun, error) {
 	}
 
 	// Run backup in background
-	go s.executeBackup(job, run)
+	go func() {
+		s.executeBackup(job, run)
+	}()
 
 	return run, nil
 }
@@ -122,13 +129,23 @@ func (s *BackupService) RunBackupJob(jobID uint) (*models.BackupRun, error) {
 func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupRun) {
 	defer func() {
 		if r := recover(); r != nil {
+			log.Printf("Panic in executeBackup: %v", r)
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Panic: %v", r), 0, 0, "")
 			s.updateBackupJobStatus(job.ID, "failed")
 		}
 	}()
 
-	// Get RustFS client
-	client, err := s.rustfsService.GetClient(&job.RustFSInstance)
+	// IMPORTANT: Reload the RustFS instance to ensure we get the correct SSL value
+	// There's a GORM issue where preloaded relationships don't preserve boolean values correctly
+	var rustfsInstance models.RustFSInstance
+	if err := s.db.First(&rustfsInstance, job.RustFSInstanceID).Error; err != nil {
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to reload RustFS instance: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Get RustFS client with the correctly loaded instance
+	client, err := s.rustfsService.GetClient(&rustfsInstance)
 	if err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get RustFS client: %v", err), 0, 0, "")
 		s.updateBackupJobStatus(job.ID, "failed")

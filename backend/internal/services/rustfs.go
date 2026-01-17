@@ -23,10 +23,6 @@ func NewRustFSService() *RustFSService {
 
 // GetClient returns or creates a MinIO client for the given RustFS instance
 func (s *RustFSService) GetClient(instance *models.RustFSInstance) (*minio.Client, error) {
-	if client, exists := s.clients[instance.ID]; exists {
-		return client, nil
-	}
-
 	client, err := minio.New(instance.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(instance.AccessKey, instance.SecretKey, ""),
 		Secure: instance.SSL,
@@ -35,7 +31,6 @@ func (s *RustFSService) GetClient(instance *models.RustFSInstance) (*minio.Clien
 		return nil, fmt.Errorf("failed to create RustFS client: %w", err)
 	}
 
-	s.clients[instance.ID] = client
 	return client, nil
 }
 
