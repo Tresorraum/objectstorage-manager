@@ -25,8 +25,6 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - PORT=8080
       - GO_ENV=production
-    ports:
-      - "8080:8080"
     depends_on:
       - postgres
     volumes:
@@ -39,8 +37,6 @@ services:
     image: ${DOCKER_USERNAME}/rustfs-manager-frontend:latest
     container_name: rustfs-manager-ui
     restart: unless-stopped
-    ports:
-      - "3000:80"
     depends_on:
       - backend
     networks:
@@ -54,6 +50,26 @@ services:
       - redis_data:/data
     networks:
       - rustfs-manager
+
+  nginx:
+    image: nginx:alpine
+    container_name: rustfs-manager-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - rustfs-manager
+    environment:
+      - DOMAIN=${DOMAIN}
+    command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf > /tmp/nginx.conf && nginx -g 'daemon off;' -c /tmp/nginx.conf"
 
 volumes:
   postgres_data:
