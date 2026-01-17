@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
 	"rustfs-manager/internal/services"
 )
@@ -16,51 +17,34 @@ func NewAuthHandler(userService *services.UserService) *AuthHandler {
 	return &AuthHandler{userService: userService}
 }
 
-type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-type RegisterRequest struct {
-	Username string `json:"username" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
-	Role     string `json:"role"`
-}
-
-type AuthResponse struct {
-	Token string       `json:"token"`
-	User  *models.User `json:"user"`
-}
-
 // Login handles user login
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req LoginRequest
+	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
 	token, user, err := h.userService.Login(req.Username, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(err))
 		return
 	}
 
 	// Remove password from response
 	user.Password = ""
 
-	c.JSON(http.StatusOK, AuthResponse{
+	c.JSON(http.StatusOK, dto.AuthResponse{
 		Token: token,
-		User:  user,
+		User:  dto.ToUserDTO(user),
 	})
 }
 
 // Register handles user registration
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req RegisterRequest
+	var req dto.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
@@ -78,23 +62,23 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	if err := h.userService.CreateUser(user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create user"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(err))
 		return
 	}
 
 	// Generate token for the new user
 	token, err := h.userService.GenerateToken(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrTokenGeneration))
 		return
 	}
 
 	// Remove password from response
 	user.Password = ""
 
-	c.JSON(http.StatusCreated, AuthResponse{
+	c.JSON(http.StatusCreated, dto.AuthResponse{
 		Token: token,
-		User:  user,
+		User:  dto.ToUserDTO(user),
 	})
 }
 
@@ -102,32 +86,32 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found in token"})
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(dto.ErrUnauthorized))
 		return
 	}
 
 	user, err := h.userService.GetUserByID(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(dto.ErrUserNotFound))
 		return
 	}
 
 	if !user.Active {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Account is disabled"})
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(dto.ErrAccountDisabled))
 		return
 	}
 
 	token, err := h.userService.GenerateToken(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrTokenGeneration))
 		return
 	}
 
 	// Remove password from response
 	user.Password = ""
 
-	c.JSON(http.StatusOK, AuthResponse{
+	c.JSON(http.StatusOK, dto.AuthResponse{
 		Token: token,
-		User:  user,
+		User:  dto.ToUserDTO(user),
 	})
 }

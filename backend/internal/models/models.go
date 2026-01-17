@@ -13,6 +13,7 @@ type User struct {
 	Email     string         `json:"email" gorm:"uniqueIndex;not null"`
 	Password  string         `json:"-" gorm:"not null"`
 	Role      string         `json:"role" gorm:"default:user"`
+	IsPremium bool           `json:"is_premium" gorm:"default:false"`
 	Active    bool           `json:"active" gorm:"default:true"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
@@ -22,6 +23,7 @@ type User struct {
 // RustFSInstance represents a RustFS deployment
 type RustFSInstance struct {
 	ID          uint           `json:"id" gorm:"primarykey"`
+	UserID      uint           `json:"user_id" gorm:"not null"`
 	Name        string         `json:"name" gorm:"not null"`
 	Endpoint    string         `json:"endpoint" gorm:"not null"`
 	AccessKey   string         `json:"access_key" gorm:"not null"`
@@ -42,6 +44,7 @@ type RustFSInstance struct {
 // BackupJob represents a backup configuration
 type BackupJob struct {
 	ID                     uint           `json:"id" gorm:"primarykey"`
+	UserID                 uint           `json:"user_id" gorm:"not null"`
 	Name                   string         `json:"name" gorm:"not null"`
 	RustFSInstanceID       uint           `json:"rustfs_instance_id" gorm:"not null"`
 	SourceBucket           string         `json:"source_bucket" gorm:"not null"`

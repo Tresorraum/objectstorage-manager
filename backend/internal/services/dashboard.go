@@ -4,19 +4,17 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
 	"rustfs-manager/internal/models"
+	"rustfs-manager/internal/repository"
 )
 
 type DashboardService struct {
-	db            *gorm.DB
-	rustfsService *RustFSService
+	repo repository.DashboardRepository
 }
 
-func NewDashboardService(db *gorm.DB, rustfsService *RustFSService) *DashboardService {
+func NewDashboardService(repo repository.DashboardRepository) *DashboardService {
 	return &DashboardService{
-		db:            db,
-		rustfsService: rustfsService,
+		repo: repo,
 	}
 }
 
@@ -52,60 +50,57 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	stats := &DashboardStats{}
 
 	// Count total instances
-	var instanceCount int64
-	if err := s.db.Model(&models.RustFSInstance{}).Count(&instanceCount).Error; err != nil {
+	instanceCount, err := s.repo.CountInstances()
+	if err != nil {
 		return nil, err
 	}
 	stats.TotalInstances = int(instanceCount)
 
 	// Count total backup jobs
-	var backupCount int64
-	if err := s.db.Model(&models.BackupJob{}).Count(&backupCount).Error; err != nil {
+	backupCount, err := s.repo.CountBackupJobs()
+	if err != nil {
 		return nil, err
 	}
 	stats.TotalBackups = int(backupCount)
 
 	// Count active alerts
-	var alertCount int64
-	if err := s.db.Model(&models.Alert{}).Where("resolved = ?", false).Count(&alertCount).Error; err != nil {
+	alertCount, err := s.repo.CountActiveAlerts()
+	if err != nil {
 		return nil, err
 	}
 	stats.ActiveAlerts = int(alertCount)
 
 	// Get total storage from backup runs
-	var totalStorage int64
-	s.db.Model(&models.BackupRun{}).
-		Where("status = ?", "completed").
-		Select("COALESCE(SUM(bytes_count), 0)").
-		Scan(&totalStorage)
+	totalStorage, err := s.repo.GetTotalStorageFromBackups()
+	if err != nil {
+		return nil, err
+	}
 	stats.TotalStorage = totalStorage
 
 	// Get backup statistics for today
 	today := time.Now().Truncate(24 * time.Hour)
 	
-	var completedToday int64
-	s.db.Model(&models.BackupRun{}).
-		Where("status = ? AND started_at >= ?", "completed", today).
-		Count(&completedToday)
+	completedToday, err := s.repo.CountCompletedBackupsAfterDate(today)
+	if err != nil {
+		return nil, err
+	}
 	stats.CompletedBackupsToday = int(completedToday)
 
-	var runningBackups int64
-	s.db.Model(&models.BackupRun{}).
-		Where("status = ?", "running").
-		Count(&runningBackups)
+	runningBackups, err := s.repo.CountRunningBackups()
+	if err != nil {
+		return nil, err
+	}
 	stats.RunningBackups = int(runningBackups)
 
-	var failedToday int64
-	s.db.Model(&models.BackupRun{}).
-		Where("status = ? AND started_at >= ?", "failed", today).
-		Count(&failedToday)
+	failedToday, err := s.repo.CountFailedBackupsAfterDate(today)
+	if err != nil {
+		return nil, err
+	}
 	stats.FailedBackupsToday = int(failedToday)
 
 	// Get last backup time
-	var lastBackup models.BackupRun
-	if err := s.db.Where("status = ?", "completed").
-		Order("completed_at DESC").
-		First(&lastBackup).Error; err == nil {
+	lastBackup, err := s.repo.GetLastCompletedBackup()
+	if err == nil && lastBackup != nil {
 		stats.LastBackupTime = lastBackup.CompletedAt
 	}
 
@@ -113,10 +108,10 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	lastMonth := time.Now().AddDate(0, -1, 0)
 	
 	// Instances change
-	var instancesLastMonth int64
-	s.db.Model(&models.RustFSInstance{}).
-		Where("created_at < ?", lastMonth).
-		Count(&instancesLastMonth)
+	instancesLastMonth, err := s.repo.CountInstancesBeforeDate(lastMonth)
+	if err != nil {
+		return nil, err
+	}
 	instancesChange := int(instanceCount) - int(instancesLastMonth)
 	if instancesChange > 0 {
 		stats.InstancesChange = fmt.Sprintf("+%d from last month", instancesChange)
@@ -126,12 +121,11 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		stats.InstancesChange = "No change from last month"
 	}
 
-	// Storage change (calculate from backup runs)
-	var storageLastMonth int64
-	s.db.Model(&models.BackupRun{}).
-		Where("status = ? AND completed_at < ?", "completed", lastMonth).
-		Select("COALESCE(SUM(bytes_count), 0)").
-		Scan(&storageLastMonth)
+	// Storage change
+	storageLastMonth, err := s.repo.GetStorageBeforeDate(lastMonth)
+	if err != nil {
+		return nil, err
+	}
 	
 	if storageLastMonth > 0 {
 		storageChangePercent := float64(totalStorage-storageLastMonth) / float64(storageLastMonth) * 100
@@ -145,10 +139,10 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	}
 
 	// Backup jobs change
-	var backupsLastMonth int64
-	s.db.Model(&models.BackupJob{}).
-		Where("created_at < ?", lastMonth).
-		Count(&backupsLastMonth)
+	backupsLastMonth, err := s.repo.CountBackupJobsBeforeDate(lastMonth)
+	if err != nil {
+		return nil, err
+	}
 	backupsChange := int(backupCount) - int(backupsLastMonth)
 	if backupsChange > 0 {
 		stats.BackupsChange = fmt.Sprintf("+%d from last month", backupsChange)
@@ -159,10 +153,10 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	}
 
 	// Alerts change
-	var alertsLastMonth int64
-	s.db.Model(&models.Alert{}).
-		Where("created_at < ? AND resolved = ?", lastMonth, false).
-		Count(&alertsLastMonth)
+	alertsLastMonth, err := s.repo.CountAlertsBeforeDate(lastMonth, false)
+	if err != nil {
+		return nil, err
+	}
 	alertsChange := int(alertCount) - int(alertsLastMonth)
 	if alertsChange > 0 {
 		stats.AlertsChange = fmt.Sprintf("+%d from last month", alertsChange)
@@ -195,43 +189,18 @@ func (s *DashboardService) GetMetrics() (*SystemMetrics, error) {
 
 // GetAlerts returns recent alerts
 func (s *DashboardService) GetAlerts(limit int) ([]models.Alert, error) {
-	var alerts []models.Alert
-	err := s.db.Order("created_at DESC").Limit(limit).Find(&alerts).Error
-	return alerts, err
+	return s.repo.GetRecentAlerts(limit)
 }
 
 // getStorageUsageTrend returns storage usage for the last N days
 func (s *DashboardService) getStorageUsageTrend(days int) ([]StorageUsageMetric, error) {
 	var metrics []StorageUsageMetric
 	
-	// Get daily storage metrics from backup runs for the last N days
+	// Get daily storage metrics from repository
 	startDate := time.Now().AddDate(0, 0, -days)
-	
-	rows, err := s.db.Raw(`
-		SELECT 
-			DATE(completed_at) as date,
-			SUM(bytes_count) as usage
-		FROM backup_runs 
-		WHERE status = 'completed'
-			AND completed_at >= ?
-			AND completed_at IS NOT NULL
-		GROUP BY DATE(completed_at)
-		ORDER BY date
-	`, startDate).Rows()
-	
+	dailyUsage, err := s.repo.GetDailyStorageUsage(startDate)
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-
-	dailyUsage := make(map[string]int64)
-	for rows.Next() {
-		var date string
-		var usage int64
-		if err := rows.Scan(&date, &usage); err != nil {
-			continue
-		}
-		dailyUsage[date] = usage
 	}
 
 	// Generate metrics for all days in the range, filling gaps with previous day's data
@@ -271,7 +240,7 @@ func (s *DashboardService) RecordMetric(instanceID uint, metricType, metricName 
 		Timestamp:        time.Now(),
 	}
 
-	return s.db.Create(metric).Error
+	return s.repo.CreateMetric(metric)
 }
 
 // CreateAlert creates a new alert
@@ -285,5 +254,5 @@ func (s *DashboardService) CreateAlert(alertType, severity, title, message, sour
 		SourceID: sourceID,
 	}
 
-	return s.db.Create(alert).Error
+	return s.repo.CreateAlert(alert)
 }

@@ -5,52 +5,70 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
+	"rustfs-manager/internal/repository"
 	"rustfs-manager/internal/services"
 )
 
 type RustFSHandler struct {
 	rustfsService *services.RustFSService
-	db            *gorm.DB
+	repo          repository.InstanceRepository
 }
 
-func NewRustFSHandler(rustfsService *services.RustFSService) *RustFSHandler {
-	return &RustFSHandler{rustfsService: rustfsService}
-}
-
-// SetDB sets the database connection
-func (h *RustFSHandler) SetDB(db *gorm.DB) {
-	h.db = db
-}
-
-type CreateInstanceRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Endpoint    string `json:"endpoint" binding:"required"`
-	AccessKey   string `json:"access_key" binding:"required"`
-	SecretKey   string `json:"secret_key" binding:"required"`
-	Region      string `json:"region"`
-	SSL         bool   `json:"ssl"`
-	Description string `json:"description"`
+func NewRustFSHandler(rustfsService *services.RustFSService, repo repository.InstanceRepository) *RustFSHandler {
+	return &RustFSHandler{
+		rustfsService: rustfsService,
+		repo:          repo,
+	}
 }
 
 // ListInstances returns all RustFS instances
 func (h *RustFSHandler) ListInstances(c *gin.Context) {
-	var instances []models.RustFSInstance
-	if err := h.db.Find(&instances).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list instances"})
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(dto.ErrUnauthorized))
 		return
 	}
 
-	c.JSON(http.StatusOK, instances)
+	instances, err := h.repo.FindByUserID(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.ToInstanceResponseList(instances))
 }
 
 // CreateInstance creates a new RustFS instance
 func (h *RustFSHandler) CreateInstance(c *gin.Context) {
-	var req CreateInstanceRequest
+	var req dto.CreateInstanceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
+	}
+
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(dto.ErrUnauthorized))
+		return
+	}
+
+	// Check if user is premium
+	isPremium, _ := c.Get("is_premium")
+	if !isPremium.(bool) {
+		// Free users can only create 1 instance
+		count, err := h.repo.CountByUserID(userID.(uint))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
+			return
+		}
+		if count >= 1 {
+			c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrInstanceLimitReached))
+			return
+		}
 	}
 
 	// Set defaults
@@ -59,6 +77,7 @@ func (h *RustFSHandler) CreateInstance(c *gin.Context) {
 	}
 
 	instance := &models.RustFSInstance{
+		UserID:      userID.(uint),
 		Name:        req.Name,
 		Endpoint:    req.Endpoint,
 		AccessKey:   req.AccessKey,
@@ -71,19 +90,16 @@ func (h *RustFSHandler) CreateInstance(c *gin.Context) {
 
 	// Test connection before saving
 	if err := h.rustfsService.TestConnection(instance); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to connect to RustFS instance"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrConnectionFailed))
 		return
 	}
 
-	if err := h.db.Create(instance).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create instance"})
+	if err := h.repo.Create(instance); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
-	// Remove secret key from response
-	instance.SecretKey = ""
-
-	c.JSON(http.StatusCreated, instance)
+	c.JSON(http.StatusCreated, dto.ToInstanceResponse(instance))
 }
 
 // GetInstance returns a specific RustFS instance
@@ -91,20 +107,24 @@ func (h *RustFSHandler) GetInstance(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid instance ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
-	var instance models.RustFSInstance
-	if err := h.db.First(&instance, uint(id)).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Instance not found"})
+	instance, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.NewErrorResponse(dto.ErrInstanceNotFound))
 		return
 	}
 
-	// Remove secret key from response
-	instance.SecretKey = ""
+	// Verify user owns this instance
+	userID, _ := c.Get("user_id")
+	if instance.UserID != userID.(uint) {
+		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrForbidden))
+		return
+	}
 
-	c.JSON(http.StatusOK, instance)
+	c.JSON(http.StatusOK, dto.ToInstanceResponse(instance))
 }
 
 // UpdateInstance updates a RustFS instance
@@ -112,19 +132,26 @@ func (h *RustFSHandler) UpdateInstance(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid instance ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
-	var instance models.RustFSInstance
-	if err := h.db.First(&instance, uint(id)).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Instance not found"})
+	instance, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.NewErrorResponse(dto.ErrInstanceNotFound))
 		return
 	}
 
-	var req CreateInstanceRequest
+	// Verify user owns this instance
+	userID, _ := c.Get("user_id")
+	if instance.UserID != userID.(uint) {
+		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrForbidden))
+		return
+	}
+
+	var req dto.UpdateInstanceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
@@ -140,20 +167,17 @@ func (h *RustFSHandler) UpdateInstance(c *gin.Context) {
 	instance.Description = req.Description
 
 	// Test connection before saving
-	if err := h.rustfsService.TestConnection(&instance); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to connect to RustFS instance"})
+	if err := h.rustfsService.TestConnection(instance); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrConnectionFailed))
 		return
 	}
 
-	if err := h.db.Save(&instance).Error; err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update instance"})
+	if err := h.repo.Update(instance); err != nil {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
-	// Remove secret key from response
-	instance.SecretKey = ""
-
-	c.JSON(http.StatusOK, instance)
+	c.JSON(http.StatusOK, dto.ToInstanceResponse(instance))
 }
 
 // DeleteInstance deletes a RustFS instance
@@ -161,12 +185,25 @@ func (h *RustFSHandler) DeleteInstance(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid instance ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
-	if err := h.db.Delete(&models.RustFSInstance{}, uint(id)).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete instance"})
+	instance, err := h.repo.FindByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.NewErrorResponse(dto.ErrInstanceNotFound))
+		return
+	}
+
+	// Verify user owns this instance
+	userID, _ := c.Get("user_id")
+	if instance.UserID != userID.(uint) {
+		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrForbidden))
+		return
+	}
+
+	if err := h.repo.Delete(uint(id)); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -178,19 +215,26 @@ func (h *RustFSHandler) ListBuckets(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid instance ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
-	var instance models.RustFSInstance
-	if err := h.db.First(&instance, uint(id)).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Instance not found"})
-		return
-	}
-
-	buckets, err := h.rustfsService.ListBuckets(&instance)
+	instance, err := h.repo.FindByID(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list buckets"})
+		c.JSON(http.StatusNotFound, dto.NewErrorResponse(dto.ErrInstanceNotFound))
+		return
+	}
+
+	// Verify user owns this instance
+	userID, _ := c.Get("user_id")
+	if instance.UserID != userID.(uint) {
+		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrForbidden))
+		return
+	}
+
+	buckets, err := h.rustfsService.ListBuckets(instance)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 

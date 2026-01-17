@@ -7,6 +7,8 @@
 -- This will be created by the application's auto-migration and seeding
 
 -- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_rust_fs_instances_user_id ON rust_fs_instances(user_id);
+CREATE INDEX IF NOT EXISTS idx_backup_jobs_user_id ON backup_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_backup_jobs_instance_id ON backup_jobs(rustfs_instance_id);
 CREATE INDEX IF NOT EXISTS idx_backup_runs_job_id ON backup_runs(backup_job_id);
 CREATE INDEX IF NOT EXISTS idx_metrics_instance_id ON metrics(rustfs_instance_id);

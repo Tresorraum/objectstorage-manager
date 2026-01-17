@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/services"
 )
 
@@ -20,7 +21,7 @@ func NewDashboardHandler(dashboardService *services.DashboardService) *Dashboard
 func (h *DashboardHandler) GetStats(c *gin.Context) {
 	stats, err := h.dashboardService.GetStats()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get dashboard stats"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -31,7 +32,7 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 func (h *DashboardHandler) GetMetrics(c *gin.Context) {
 	metrics, err := h.dashboardService.GetMetrics()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get system metrics"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -48,7 +49,7 @@ func (h *DashboardHandler) GetAlerts(c *gin.Context) {
 
 	alerts, err := h.dashboardService.GetAlerts(limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get alerts"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
