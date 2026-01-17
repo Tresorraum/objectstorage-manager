@@ -13,6 +13,7 @@ type User struct {
 	Email     string         `json:"email" gorm:"uniqueIndex;not null"`
 	Password  string         `json:"-" gorm:"not null"`
 	Role      string         `json:"role" gorm:"default:user"`
+	IsPremium bool           `json:"is_premium" gorm:"default:false"`
 	Active    bool           `json:"active" gorm:"default:true"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
@@ -22,6 +23,7 @@ type User struct {
 // RustFSInstance represents a RustFS deployment
 type RustFSInstance struct {
 	ID          uint           `json:"id" gorm:"primarykey"`
+	UserID      uint           `json:"user_id" gorm:"not null"`
 	Name        string         `json:"name" gorm:"not null"`
 	Endpoint    string         `json:"endpoint" gorm:"not null"`
 	AccessKey   string         `json:"access_key" gorm:"not null"`
@@ -41,28 +43,33 @@ type RustFSInstance struct {
 
 // BackupJob represents a backup configuration
 type BackupJob struct {
-	ID               uint           `json:"id" gorm:"primarykey"`
-	Name             string         `json:"name" gorm:"not null"`
-	RustFSInstanceID uint           `json:"rustfs_instance_id" gorm:"not null"`
-	SourceBucket     string         `json:"source_bucket" gorm:"not null"`
-	DestinationPath  string         `json:"destination_path" gorm:"not null"`
-	Schedule         string         `json:"schedule"` // Cron expression
-	Enabled          bool           `json:"enabled" gorm:"default:true"`
-	RetentionDays    int            `json:"retention_days" gorm:"default:30"`
-	CompressionType  string         `json:"compression_type" gorm:"default:gzip"`
-	LastRun          *time.Time     `json:"last_run"`
-	NextRun          *time.Time     `json:"next_run"`
-	Status           string         `json:"status" gorm:"default:pending"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `json:"-" gorm:"index"`
+	ID                     uint           `json:"id" gorm:"primarykey"`
+	UserID                 uint           `json:"user_id" gorm:"not null"`
+	Name                   string         `json:"name" gorm:"not null"`
+	RustFSInstanceID       uint           `json:"rustfs_instance_id" gorm:"not null"`
+	SourceBucket           string         `json:"source_bucket" gorm:"not null"`
+	BackupType             string         `json:"backup_type" gorm:"default:server"` // "server" or "bucket"
+	DestinationPath        string         `json:"destination_path"`                  // For server backups
+	DestinationInstanceID  *uint          `json:"destination_instance_id"`           // For bucket backups
+	DestinationBucket      string         `json:"destination_bucket"`                // For bucket backups
+	Schedule               string         `json:"schedule"`                          // Cron expression
+	Enabled                bool           `json:"enabled" gorm:"default:true"`
+	RetentionDays          int            `json:"retention_days" gorm:"default:30"`
+	CompressionType        string         `json:"compression_type" gorm:"default:gzip"`
+	LastRun                *time.Time     `json:"last_run"`
+	NextRun                *time.Time     `json:"next_run"`
+	Status                 string         `json:"status" gorm:"default:pending"`
+	CreatedAt              time.Time      `json:"created_at"`
+	UpdatedAt              time.Time      `json:"updated_at"`
+	DeletedAt              gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// Relationships
-	RustFSInstance RustFSInstance `json:"rustfs_instance,omitempty"`
-	BackupRuns     []BackupRun    `json:"backup_runs,omitempty"`
+	RustFSInstance        RustFSInstance  `json:"rustfs_instance,omitempty"`
+	DestinationInstance   *RustFSInstance `json:"destination_instance,omitempty" gorm:"foreignKey:DestinationInstanceID"`
+	BackupRuns            []BackupRun     `json:"backup_runs,omitempty"`
 	
 	// Computed fields
-	LastErrorMsg   string `json:"last_error_msg" gorm:"-"`
+	LastErrorMsg          string `json:"last_error_msg" gorm:"-"`
 }
 
 // GetLastErrorMsg returns the error message from the most recent backup run

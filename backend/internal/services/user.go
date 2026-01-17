@@ -1,22 +1,25 @@
 package services
 
 import (
-	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"rustfs-manager/internal/config"
+	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
+	"rustfs-manager/internal/repository"
 )
 
 type UserService struct {
-	db *gorm.DB
+	repo repository.UserRepository
 }
 
-func NewUserService(db *gorm.DB) *UserService {
-	return &UserService{db: db}
+func NewUserService(repo repository.UserRepository) *UserService {
+	return &UserService{
+		repo: repo,
+	}
 }
 
 // CreateUser creates a new user
@@ -28,21 +31,17 @@ func (s *UserService) CreateUser(user *models.User) error {
 	}
 	user.Password = string(hashedPassword)
 
-	return s.db.Create(user).Error
+	return s.repo.Create(user)
 }
 
 // GetUserByUsername retrieves a user by username
 func (s *UserService) GetUserByUsername(username string) (*models.User, error) {
-	var user models.User
-	err := s.db.Where("username = ?", username).First(&user).Error
-	return &user, err
+	return s.repo.FindByUsername(username)
 }
 
 // GetUserByID retrieves a user by ID
 func (s *UserService) GetUserByID(id uint) (*models.User, error) {
-	var user models.User
-	err := s.db.First(&user, id).Error
-	return &user, err
+	return s.repo.FindByID(id)
 }
 
 // ValidatePassword validates a user's password
@@ -70,23 +69,23 @@ func (s *UserService) GenerateToken(user *models.User) (string, error) {
 func (s *UserService) Login(username, password string) (string, *models.User, error) {
 	user, err := s.GetUserByUsername(username)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", nil, errors.New("invalid credentials")
+		if err == gorm.ErrRecordNotFound {
+			return "", nil, dto.ErrInvalidCredentials
 		}
 		return "", nil, err
 	}
 
 	if !user.Active {
-		return "", nil, errors.New("account is disabled")
+		return "", nil, dto.ErrAccountDisabled
 	}
 
 	if !s.ValidatePassword(user, password) {
-		return "", nil, errors.New("invalid credentials")
+		return "", nil, dto.ErrInvalidCredentials
 	}
 
 	token, err := s.GenerateToken(user)
 	if err != nil {
-		return "", nil, err
+		return "", nil, dto.ErrTokenGeneration
 	}
 
 	return token, user, nil
@@ -94,17 +93,15 @@ func (s *UserService) Login(username, password string) (string, *models.User, er
 
 // ListUsers returns all users
 func (s *UserService) ListUsers() ([]models.User, error) {
-	var users []models.User
-	err := s.db.Find(&users).Error
-	return users, err
+	return s.repo.List()
 }
 
 // UpdateUser updates a user
 func (s *UserService) UpdateUser(user *models.User) error {
-	return s.db.Save(user).Error
+	return s.repo.Update(user)
 }
 
 // DeleteUser deletes a user
 func (s *UserService) DeleteUser(id uint) error {
-	return s.db.Delete(&models.User{}, id).Error
+	return s.repo.Delete(id)
 }

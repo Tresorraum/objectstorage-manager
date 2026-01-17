@@ -10,6 +10,7 @@ import (
 	"rustfs-manager/internal/database"
 	"rustfs-manager/internal/handlers"
 	"rustfs-manager/internal/middleware"
+	"rustfs-manager/internal/repository"
 	"rustfs-manager/internal/services"
 )
 
@@ -23,18 +24,23 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db)
+	instanceRepo := repository.NewInstanceRepository(db)
+	backupRepo := repository.NewBackupRepository(db)
+	dashboardRepo := repository.NewDashboardRepository(db)
+
 	// Initialize services
 	rustfsService := services.NewRustFSService()
-	backupService := services.NewBackupService(db)
-	dashboardService := services.NewDashboardService(db, rustfsService)
-	userService := services.NewUserService(db)
+	userService := services.NewUserService(userRepo)
+	backupService := services.NewBackupService(backupRepo, instanceRepo)
+	dashboardService := services.NewDashboardService(dashboardRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	backupHandler := handlers.NewBackupHandler(backupService)
-	rustfsHandler := handlers.NewRustFSHandler(rustfsService)
-	rustfsHandler.SetDB(db)
+	rustfsHandler := handlers.NewRustFSHandler(rustfsService, instanceRepo)
 
 	// Setup Gin router
 	r := gin.Default()

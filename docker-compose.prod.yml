@@ -1,0 +1,86 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rustfs-manager-db
+    restart: unless-stopped
+
+    ports:
+      - "5432:5432"
+
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - rustfs-manager
+
+  backend:
+    image: ${DOCKER_USERNAME}/rustfs-manager-backend:latest
+    container_name: rustfs-manager-api
+    restart: unless-stopped
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - PORT=8080
+      - GO_ENV=production
+    depends_on:
+      - postgres
+    volumes:
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    networks:
+      - rustfs-manager
+
+  frontend:
+    image: ${DOCKER_USERNAME}/rustfs-manager-frontend:latest
+    container_name: rustfs-manager-ui
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - rustfs-manager
+
+  redis:
+    image: redis:7-alpine
+    container_name: rustfs-manager-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - rustfs-manager
+
+  nginx:
+    image: nginx:alpine
+    container_name: rustfs-manager-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - rustfs-manager
+    environment:
+      - DOMAIN=${DOMAIN}
+    command: /bin/sh -c "envsubst '$$DOMAIN' < /etc/nginx/nginx.conf > /tmp/nginx.conf && nginx -g 'daemon off;' -c /tmp/nginx.conf"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  rustfs-manager:
+    driver: bridge

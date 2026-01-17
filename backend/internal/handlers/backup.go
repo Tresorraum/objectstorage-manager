@@ -5,40 +5,26 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
+	"rustfs-manager/internal/repository"
 	"rustfs-manager/internal/services"
 )
 
 type BackupHandler struct {
 	backupService *services.BackupService
+	backupRepo    repository.BackupRepository
 }
 
 func NewBackupHandler(backupService *services.BackupService) *BackupHandler {
 	return &BackupHandler{backupService: backupService}
 }
 
-type CreateBackupJobRequest struct {
-	Name             string `json:"name" binding:"required"`
-	RustFSInstanceID uint   `json:"rustfs_instance_id" binding:"required"`
-	SourceBucket     string `json:"source_bucket" binding:"required"`
-	DestinationPath  string `json:"destination_path" binding:"required"`
-	Schedule         string `json:"schedule"`
-	Enabled          bool   `json:"enabled"`
-	RetentionDays    int    `json:"retention_days"`
-	CompressionType  string `json:"compression_type"`
-}
-
-type RestoreBackupRequest struct {
-	InstanceID   uint   `json:"instance_id" binding:"required"`
-	BackupPath   string `json:"backup_path" binding:"required"`
-	TargetBucket string `json:"target_bucket" binding:"required"`
-}
-
 // ListJobs returns all backup jobs
 func (h *BackupHandler) ListJobs(c *gin.Context) {
 	jobs, err := h.backupService.ListBackupJobs()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list backup jobs"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -47,10 +33,49 @@ func (h *BackupHandler) ListJobs(c *gin.Context) {
 
 // CreateJob creates a new backup job
 func (h *BackupHandler) CreateJob(c *gin.Context) {
-	var req CreateBackupJobRequest
+	var req dto.CreateBackupJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
+	}
+
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.NewErrorResponse(dto.ErrUnauthorized))
+		return
+	}
+
+	// Check if user is premium
+	isPremium, _ := c.Get("is_premium")
+	
+	// Check backup type restrictions
+	if req.BackupType == "server" && !isPremium.(bool) {
+		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrServerBackupRestricted))
+		return
+	}
+
+	// Validate backup type
+	if req.BackupType != "server" && req.BackupType != "bucket" {
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrInvalidBackupType))
+		return
+	}
+
+	// Validate required fields based on backup type
+	if req.BackupType == "server" && req.DestinationPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "destination_path is required for server backups"})
+		return
+	}
+
+	if req.BackupType == "bucket" {
+		if req.DestinationInstanceID == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "destination_instance_id is required for bucket backups"})
+			return
+		}
+		if req.DestinationBucket == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "destination_bucket is required for bucket backups"})
+			return
+		}
 	}
 
 	// Set defaults
@@ -62,18 +87,22 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	}
 
 	job := &models.BackupJob{
-		Name:             req.Name,
-		RustFSInstanceID: req.RustFSInstanceID,
-		SourceBucket:     req.SourceBucket,
-		DestinationPath:  req.DestinationPath,
-		Schedule:         req.Schedule,
-		Enabled:          req.Enabled,
-		RetentionDays:    req.RetentionDays,
-		CompressionType:  req.CompressionType,
+		UserID:                userID.(uint),
+		Name:                  req.Name,
+		RustFSInstanceID:      req.RustFSInstanceID,
+		SourceBucket:          req.SourceBucket,
+		BackupType:            req.BackupType,
+		DestinationPath:       req.DestinationPath,
+		DestinationInstanceID: req.DestinationInstanceID,
+		DestinationBucket:     req.DestinationBucket,
+		Schedule:              req.Schedule,
+		Enabled:               req.Enabled,
+		RetentionDays:         req.RetentionDays,
+		CompressionType:       req.CompressionType,
 	}
 
 	if err := h.backupService.CreateBackupJob(job); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to create backup job"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -85,13 +114,13 @@ func (h *BackupHandler) GetJob(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
 	job, err := h.backupService.GetBackupJob(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Backup job not found"})
+		c.JSON(http.StatusNotFound, dto.NewErrorResponse(dto.ErrBackupJobNotFound))
 		return
 	}
 
@@ -103,19 +132,19 @@ func (h *BackupHandler) UpdateJob(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
 	job, err := h.backupService.GetBackupJob(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Backup job not found"})
+		c.JSON(http.StatusNotFound, dto.NewErrorResponse(dto.ErrBackupJobNotFound))
 		return
 	}
 
-	var req CreateBackupJobRequest
+	var req dto.UpdateBackupJobRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
@@ -123,14 +152,17 @@ func (h *BackupHandler) UpdateJob(c *gin.Context) {
 	job.Name = req.Name
 	job.RustFSInstanceID = req.RustFSInstanceID
 	job.SourceBucket = req.SourceBucket
+	job.BackupType = req.BackupType
 	job.DestinationPath = req.DestinationPath
+	job.DestinationInstanceID = req.DestinationInstanceID
+	job.DestinationBucket = req.DestinationBucket
 	job.Schedule = req.Schedule
 	job.Enabled = req.Enabled
 	job.RetentionDays = req.RetentionDays
 	job.CompressionType = req.CompressionType
 
 	if err := h.backupService.UpdateBackupJob(job); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to update backup job"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -142,12 +174,12 @@ func (h *BackupHandler) DeleteJob(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
 	if err := h.backupService.DeleteBackupJob(uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete backup job"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -159,13 +191,13 @@ func (h *BackupHandler) RunJob(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid job ID"})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
 	run, err := h.backupService.RunBackupJob(uint(id))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to run backup job"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 
@@ -174,14 +206,14 @@ func (h *BackupHandler) RunJob(c *gin.Context) {
 
 // RestoreBackup restores a backup
 func (h *BackupHandler) RestoreBackup(c *gin.Context) {
-	var req RestoreBackupRequest
+	var req dto.RestoreBackupRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrBadRequest))
 		return
 	}
 
 	if err := h.backupService.RestoreBackup(req.InstanceID, req.BackupPath, req.TargetBucket); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restore backup"})
+		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
 

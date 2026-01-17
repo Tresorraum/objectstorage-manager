@@ -1,36 +1,33 @@
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: rustfs-manager-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: rustfs_manager
-      POSTGRES_USER: rustfs_user
-      POSTGRES_PASSWORD: rustfs_password
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    ports:
-      - "5432:5432"
     networks:
       - rustfs-manager
 
-  # Go Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: ${DOCKER_USERNAME}/rustfs-manager-backend:latest
     container_name: rustfs-manager-api
     restart: unless-stopped
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=${DB_HOST}
       - DB_PORT=5432
-      - DB_NAME=rustfs_manager
-      - DB_USER=rustfs_user
-      - DB_PASSWORD=rustfs_password
-      - JWT_SECRET=your-jwt-secret-change-this
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
       - PORT=8080
+      - GO_ENV=production
     ports:
       - "8080:8080"
     depends_on:
@@ -41,11 +38,13 @@ services:
     networks:
       - rustfs-manager
 
-  # React Frontend
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8080/api/v1
+    image: ${DOCKER_USERNAME}/rustfs-manager-frontend:latest
     container_name: rustfs-manager-ui
     restart: unless-stopped
     ports:
@@ -55,13 +54,10 @@ services:
     networks:
       - rustfs-manager
 
-  # Redis for caching and job queue
   redis:
     image: redis:7-alpine
     container_name: rustfs-manager-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:

@@ -40,9 +40,19 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			c.Set("user_id", claims["user_id"])
+			// JWT stores numbers as float64, so we need to convert them
+			if userID, ok := claims["user_id"].(float64); ok {
+				c.Set("user_id", uint(userID))
+			}
 			c.Set("username", claims["username"])
 			c.Set("role", claims["role"])
+			
+			// Handle is_premium - it might be bool or not present
+			if isPremium, ok := claims["is_premium"].(bool); ok {
+				c.Set("is_premium", isPremium)
+			} else {
+				c.Set("is_premium", false)
+			}
 		}
 
 		c.Next()

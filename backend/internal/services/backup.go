@@ -12,18 +12,20 @@ import (
 	"time"
 
 	"github.com/minio/minio-go/v7"
-	"gorm.io/gorm"
 	"rustfs-manager/internal/models"
+	"rustfs-manager/internal/repository"
 )
 
 type BackupService struct {
-	db           *gorm.DB
+	repo          repository.BackupRepository
+	instanceRepo  repository.InstanceRepository
 	rustfsService *RustFSService
 }
 
-func NewBackupService(db *gorm.DB) *BackupService {
+func NewBackupService(repo repository.BackupRepository, instanceRepo repository.InstanceRepository) *BackupService {
 	return &BackupService{
-		db:           db,
+		repo:          repo,
+		instanceRepo:  instanceRepo,
 		rustfsService: NewRustFSService(),
 	}
 }
@@ -39,29 +41,17 @@ func (s *BackupService) CreateBackupJob(job *models.BackupJob) error {
 		job.NextRun = &nextRun
 	}
 
-	return s.db.Create(job).Error
+	return s.repo.CreateJob(job)
 }
 
 // GetBackupJob retrieves a backup job by ID
 func (s *BackupService) GetBackupJob(id uint) (*models.BackupJob, error) {
-	var job models.BackupJob
-	err := s.db.Preload("RustFSInstance").Preload("BackupRuns").First(&job, id).Error
-	if err != nil {
-		return nil, err
-	}
-	
-	return &job, nil
+	return s.repo.FindJobByID(id)
 }
 
 // ListBackupJobs returns all backup jobs with latest backup run info
 func (s *BackupService) ListBackupJobs() ([]models.BackupJob, error) {
-	var jobs []models.BackupJob
-	err := s.db.Preload("RustFSInstance").
-		Preload("BackupRuns", func(db *gorm.DB) *gorm.DB {
-			return db.Order("started_at DESC").Limit(1)
-		}).
-		Find(&jobs).Error
-	
+	jobs, err := s.repo.ListJobs()
 	if err != nil {
 		return nil, err
 	}
@@ -84,12 +74,12 @@ func (s *BackupService) UpdateBackupJob(job *models.BackupJob) error {
 		job.NextRun = &nextRun
 	}
 
-	return s.db.Save(job).Error
+	return s.repo.UpdateJob(job)
 }
 
 // DeleteBackupJob deletes a backup job
 func (s *BackupService) DeleteBackupJob(id uint) error {
-	return s.db.Delete(&models.BackupJob{}, id).Error
+	return s.repo.DeleteJob(id)
 }
 
 // RunBackupJob executes a backup job
@@ -102,7 +92,7 @@ func (s *BackupService) RunBackupJob(jobID uint) (*models.BackupRun, error) {
 
 	// Update backup job status to running
 	job.Status = "running"
-	if err := s.db.Save(job).Error; err != nil {
+	if err := s.repo.UpdateJob(job); err != nil {
 		return nil, fmt.Errorf("failed to update backup job status: %w", err)
 	}
 
@@ -113,7 +103,7 @@ func (s *BackupService) RunBackupJob(jobID uint) (*models.BackupRun, error) {
 		StartedAt:   time.Now(),
 	}
 
-	if err := s.db.Create(run).Error; err != nil {
+	if err := s.repo.CreateRun(run); err != nil {
 		return nil, fmt.Errorf("failed to create backup run: %w", err)
 	}
 
@@ -136,22 +126,31 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	}()
 
 	// IMPORTANT: Reload the RustFS instance to ensure we get the correct SSL value
-	// There's a GORM issue where preloaded relationships don't preserve boolean values correctly
-	var rustfsInstance models.RustFSInstance
-	if err := s.db.First(&rustfsInstance, job.RustFSInstanceID).Error; err != nil {
+	jobWithInstance, err := s.repo.FindJobByID(job.ID)
+	if err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to reload RustFS instance: %v", err), 0, 0, "")
 		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
 
-	// Get RustFS client with the correctly loaded instance
-	client, err := s.rustfsService.GetClient(&rustfsInstance)
+	// Get RustFS client for source
+	sourceClient, err := s.rustfsService.GetClient(&jobWithInstance.RustFSInstance)
 	if err != nil {
-		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get RustFS client: %v", err), 0, 0, "")
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get source RustFS client: %v", err), 0, 0, "")
 		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
 
+	// Route to appropriate backup method based on backup type
+	if job.BackupType == "bucket" {
+		s.executeBackupToBucket(job, run, sourceClient)
+	} else {
+		s.executeBackupToServer(job, run, sourceClient)
+	}
+}
+
+// executeBackupToServer backs up to server storage
+func (s *BackupService) executeBackupToServer(job *models.BackupJob, run *models.BackupRun, client *minio.Client) {
 	// Create backup directory
 	backupDir := filepath.Join("/app/backups", fmt.Sprintf("job_%d", job.ID))
 	timestamp := time.Now().Format("20060102_150405")
@@ -254,10 +253,113 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 		nextRun, _ := s.calculateNextRun(job.Schedule)
 		job.NextRun = &nextRun
 	}
-	s.db.Save(job)
+	s.repo.UpdateJob(job)
 
 	// Update backup run as completed
 	s.updateBackupRun(run, "completed", "", filesCount, bytesCount, backupPath)
+}
+
+// executeBackupToBucket backs up directly to another object storage bucket
+func (s *BackupService) executeBackupToBucket(job *models.BackupJob, run *models.BackupRun, sourceClient *minio.Client) {
+	ctx := context.Background()
+
+	// Get destination instance
+	if job.DestinationInstanceID == nil {
+		s.updateBackupRun(run, "failed", "Destination instance ID is required for bucket backups", 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Get destination instance from repository
+	jobWithDest, err := s.repo.FindJobByID(job.ID)
+	if err != nil || jobWithDest.DestinationInstance == nil {
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get destination instance: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Get destination client
+	destClient, err := s.rustfsService.GetClient(jobWithDest.DestinationInstance)
+	if err != nil {
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get destination RustFS client: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Ensure destination bucket exists
+	exists, err := destClient.BucketExists(ctx, job.DestinationBucket)
+	if err != nil {
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to check destination bucket: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	if !exists {
+		if err := destClient.MakeBucket(ctx, job.DestinationBucket, minio.MakeBucketOptions{}); err != nil {
+			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to create destination bucket: %v", err), 0, 0, "")
+			s.updateBackupJobStatus(job.ID, "failed")
+			return
+		}
+	}
+
+	// List objects from source bucket
+	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
+
+	var filesCount int64
+	var bytesCount int64
+	var errors []string
+
+	// Copy each object to destination
+	for object := range objectCh {
+		if object.Err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to list object: %v", object.Err))
+			continue
+		}
+
+		// Get object from source
+		srcObject, err := sourceClient.GetObject(ctx, job.SourceBucket, object.Key, minio.GetObjectOptions{})
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to get object %s: %v", object.Key, err))
+			continue
+		}
+
+		// Copy to destination with timestamp prefix to avoid overwriting
+		timestamp := time.Now().Format("20060102_150405")
+		destKey := fmt.Sprintf("%s/%s", timestamp, object.Key)
+
+		_, err = destClient.PutObject(ctx, job.DestinationBucket, destKey, srcObject, object.Size, minio.PutObjectOptions{
+			ContentType: "application/octet-stream",
+		})
+		srcObject.Close()
+
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to copy object %s: %v", object.Key, err))
+			continue
+		}
+
+		filesCount++
+		bytesCount += object.Size
+	}
+
+	// Update backup job status
+	now := time.Now()
+	job.LastRun = &now
+	if len(errors) > 0 {
+		job.Status = "failed"
+		errorMsg := fmt.Sprintf("Completed with %d errors: %s", len(errors), errors[0])
+		if len(errors) > 1 {
+			errorMsg += fmt.Sprintf(" (and %d more)", len(errors)-1)
+		}
+		s.updateBackupRun(run, "failed", errorMsg, filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, time.Now().Format("20060102_150405")))
+	} else {
+		job.Status = "completed"
+		if job.Schedule != "" {
+			nextRun, _ := s.calculateNextRun(job.Schedule)
+			job.NextRun = &nextRun
+		}
+		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, time.Now().Format("20060102_150405")))
+	}
+	s.repo.UpdateJob(job)
 }
 
 // updateBackupRun updates the backup run status
@@ -270,24 +372,29 @@ func (s *BackupService) updateBackupRun(run *models.BackupRun, status, errorMsg 
 	run.BytesCount = bytesCount
 	run.BackupPath = backupPath
 
-	s.db.Save(run)
+	s.repo.UpdateRun(run)
 }
 
 // updateBackupJobStatus updates the backup job status
 func (s *BackupService) updateBackupJobStatus(jobID uint, status string) {
-	s.db.Model(&models.BackupJob{}).Where("id = ?", jobID).Update("status", status)
+	job, err := s.repo.FindJobByID(jobID)
+	if err != nil {
+		return
+	}
+	job.Status = status
+	s.repo.UpdateJob(job)
 }
 
 // RestoreBackup restores a backup to a RustFS instance
 func (s *BackupService) RestoreBackup(instanceID uint, backupPath, targetBucket string) error {
-	// Get RustFS instance
-	var instance models.RustFSInstance
-	if err := s.db.First(&instance, instanceID).Error; err != nil {
+	// Get RustFS instance from repository
+	instance, err := s.instanceRepo.FindByID(instanceID)
+	if err != nil {
 		return fmt.Errorf("failed to get RustFS instance: %w", err)
 	}
 
 	// Get RustFS client
-	client, err := s.rustfsService.GetClient(&instance)
+	client, err := s.rustfsService.GetClient(instance)
 	if err != nil {
 		return fmt.Errorf("failed to get RustFS client: %w", err)
 	}

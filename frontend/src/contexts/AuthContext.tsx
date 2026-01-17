@@ -7,6 +7,7 @@ interface User {
   email: string;
   role: string;
   active: boolean;
+  is_premium: boolean;
 }
 
 interface AuthContextType {
