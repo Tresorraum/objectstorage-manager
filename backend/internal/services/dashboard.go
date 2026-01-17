@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -20,11 +21,19 @@ func NewDashboardService(db *gorm.DB, rustfsService *RustFSService) *DashboardSe
 }
 
 type DashboardStats struct {
-	TotalInstances int                    `json:"total_instances"`
-	TotalStorage   int64                  `json:"total_storage"`
-	TotalBackups   int                    `json:"total_backups"`
-	ActiveAlerts   int                    `json:"active_alerts"`
-	StorageUsage   []StorageUsageMetric   `json:"storage_usage"`
+	TotalInstances       int                    `json:"totalInstances"`
+	TotalStorage         int64                  `json:"totalStorage"`
+	TotalBackups         int                    `json:"totalBackups"`
+	ActiveAlerts         int                    `json:"activeAlerts"`
+	StorageUsage         []StorageUsageMetric   `json:"storageUsage"`
+	CompletedBackupsToday int                   `json:"completedBackupsToday"`
+	RunningBackups       int                    `json:"runningBackups"`
+	FailedBackupsToday   int                    `json:"failedBackupsToday"`
+	LastBackupTime       *time.Time             `json:"lastBackupTime"`
+	InstancesChange      string                 `json:"instancesChange"`
+	StorageChange        string                 `json:"storageChange"`
+	BackupsChange        string                 `json:"backupsChange"`
+	AlertsChange         string                 `json:"alertsChange"`
 }
 
 type StorageUsageMetric struct {
@@ -63,13 +72,105 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	}
 	stats.ActiveAlerts = int(alertCount)
 
-	// Get total storage from metrics
+	// Get total storage from backup runs
 	var totalStorage int64
-	s.db.Model(&models.Metric{}).
-		Where("metric_type = ? AND metric_name = ?", "storage", "total_size").
-		Select("COALESCE(SUM(value), 0)").
+	s.db.Model(&models.BackupRun{}).
+		Where("status = ?", "completed").
+		Select("COALESCE(SUM(bytes_count), 0)").
 		Scan(&totalStorage)
 	stats.TotalStorage = totalStorage
+
+	// Get backup statistics for today
+	today := time.Now().Truncate(24 * time.Hour)
+	
+	var completedToday int64
+	s.db.Model(&models.BackupRun{}).
+		Where("status = ? AND started_at >= ?", "completed", today).
+		Count(&completedToday)
+	stats.CompletedBackupsToday = int(completedToday)
+
+	var runningBackups int64
+	s.db.Model(&models.BackupRun{}).
+		Where("status = ?", "running").
+		Count(&runningBackups)
+	stats.RunningBackups = int(runningBackups)
+
+	var failedToday int64
+	s.db.Model(&models.BackupRun{}).
+		Where("status = ? AND started_at >= ?", "failed", today).
+		Count(&failedToday)
+	stats.FailedBackupsToday = int(failedToday)
+
+	// Get last backup time
+	var lastBackup models.BackupRun
+	if err := s.db.Where("status = ?", "completed").
+		Order("completed_at DESC").
+		First(&lastBackup).Error; err == nil {
+		stats.LastBackupTime = lastBackup.CompletedAt
+	}
+
+	// Calculate changes from last month
+	lastMonth := time.Now().AddDate(0, -1, 0)
+	
+	// Instances change
+	var instancesLastMonth int64
+	s.db.Model(&models.RustFSInstance{}).
+		Where("created_at < ?", lastMonth).
+		Count(&instancesLastMonth)
+	instancesChange := int(instanceCount) - int(instancesLastMonth)
+	if instancesChange > 0 {
+		stats.InstancesChange = fmt.Sprintf("+%d from last month", instancesChange)
+	} else if instancesChange < 0 {
+		stats.InstancesChange = fmt.Sprintf("%d from last month", instancesChange)
+	} else {
+		stats.InstancesChange = "No change from last month"
+	}
+
+	// Storage change (calculate from backup runs)
+	var storageLastMonth int64
+	s.db.Model(&models.BackupRun{}).
+		Where("status = ? AND completed_at < ?", "completed", lastMonth).
+		Select("COALESCE(SUM(bytes_count), 0)").
+		Scan(&storageLastMonth)
+	
+	if storageLastMonth > 0 {
+		storageChangePercent := float64(totalStorage-storageLastMonth) / float64(storageLastMonth) * 100
+		if storageChangePercent > 0 {
+			stats.StorageChange = fmt.Sprintf("+%.1f%% from last month", storageChangePercent)
+		} else {
+			stats.StorageChange = fmt.Sprintf("%.1f%% from last month", storageChangePercent)
+		}
+	} else {
+		stats.StorageChange = "No data from last month"
+	}
+
+	// Backup jobs change
+	var backupsLastMonth int64
+	s.db.Model(&models.BackupJob{}).
+		Where("created_at < ?", lastMonth).
+		Count(&backupsLastMonth)
+	backupsChange := int(backupCount) - int(backupsLastMonth)
+	if backupsChange > 0 {
+		stats.BackupsChange = fmt.Sprintf("+%d from last month", backupsChange)
+	} else if backupsChange < 0 {
+		stats.BackupsChange = fmt.Sprintf("%d from last month", backupsChange)
+	} else {
+		stats.BackupsChange = "No change from last month"
+	}
+
+	// Alerts change
+	var alertsLastMonth int64
+	s.db.Model(&models.Alert{}).
+		Where("created_at < ? AND resolved = ?", lastMonth, false).
+		Count(&alertsLastMonth)
+	alertsChange := int(alertCount) - int(alertsLastMonth)
+	if alertsChange > 0 {
+		stats.AlertsChange = fmt.Sprintf("+%d from last month", alertsChange)
+	} else if alertsChange < 0 {
+		stats.AlertsChange = fmt.Sprintf("%d resolved from last month", -alertsChange)
+	} else {
+		stats.AlertsChange = "No change from last month"
+	}
 
 	// Get storage usage trend (last 30 days)
 	storageUsage, err := s.getStorageUsageTrend(30)
@@ -103,18 +204,18 @@ func (s *DashboardService) GetAlerts(limit int) ([]models.Alert, error) {
 func (s *DashboardService) getStorageUsageTrend(days int) ([]StorageUsageMetric, error) {
 	var metrics []StorageUsageMetric
 	
-	// Get daily storage metrics for the last N days
+	// Get daily storage metrics from backup runs for the last N days
 	startDate := time.Now().AddDate(0, 0, -days)
 	
 	rows, err := s.db.Raw(`
 		SELECT 
-			DATE(timestamp) as date,
-			SUM(value) as usage
-		FROM metrics 
-		WHERE metric_type = 'storage' 
-			AND metric_name = 'total_size'
-			AND timestamp >= ?
-		GROUP BY DATE(timestamp)
+			DATE(completed_at) as date,
+			SUM(bytes_count) as usage
+		FROM backup_runs 
+		WHERE status = 'completed'
+			AND completed_at >= ?
+			AND completed_at IS NOT NULL
+		GROUP BY DATE(completed_at)
 		ORDER BY date
 	`, startDate).Rows()
 	
@@ -123,23 +224,36 @@ func (s *DashboardService) getStorageUsageTrend(days int) ([]StorageUsageMetric,
 	}
 	defer rows.Close()
 
+	dailyUsage := make(map[string]int64)
 	for rows.Next() {
-		var metric StorageUsageMetric
-		if err := rows.Scan(&metric.Date, &metric.Usage); err != nil {
+		var date string
+		var usage int64
+		if err := rows.Scan(&date, &usage); err != nil {
 			continue
 		}
-		metrics = append(metrics, metric)
+		dailyUsage[date] = usage
 	}
 
-	// Fill in missing days with zero values
-	if len(metrics) == 0 {
-		// Generate sample data for demo
-		for i := days - 1; i >= 0; i-- {
-			date := time.Now().AddDate(0, 0, -i)
-			metrics = append(metrics, StorageUsageMetric{
-				Date:  date.Format("2006-01-02"),
-				Usage: int64(1000000000 + i*100000000), // Sample increasing usage
-			})
+	// Generate metrics for all days in the range, filling gaps with previous day's data
+	var cumulativeUsage int64
+	for i := days - 1; i >= 0; i-- {
+		date := time.Now().AddDate(0, 0, -i)
+		dateStr := date.Format("2006-01-02")
+		
+		if usage, exists := dailyUsage[dateStr]; exists {
+			cumulativeUsage += usage
+		}
+		
+		metrics = append(metrics, StorageUsageMetric{
+			Date:  dateStr,
+			Usage: cumulativeUsage,
+		})
+	}
+
+	// If no real data exists, generate minimal sample data
+	if cumulativeUsage == 0 {
+		for i := range metrics {
+			metrics[i].Usage = int64(i * 50000000) // 50MB increments
 		}
 	}
 

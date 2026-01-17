@@ -81,6 +81,12 @@ func (s *BackupService) RunBackupJob(jobID uint) (*models.BackupRun, error) {
 		return nil, fmt.Errorf("failed to get backup job: %w", err)
 	}
 
+	// Update backup job status to running
+	job.Status = "running"
+	if err := s.db.Save(job).Error; err != nil {
+		return nil, fmt.Errorf("failed to update backup job status: %w", err)
+	}
+
 	// Create backup run record
 	run := &models.BackupRun{
 		BackupJobID: jobID,
@@ -103,6 +109,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	defer func() {
 		if r := recover(); r != nil {
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Panic: %v", r), 0, 0, "")
+			s.updateBackupJobStatus(job.ID, "failed")
 		}
 	}()
 
@@ -110,6 +117,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	client, err := s.rustfsService.GetClient(&job.RustFSInstance)
 	if err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get RustFS client: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
 
@@ -120,6 +128,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 
 	if err := os.MkdirAll(filepath.Dir(backupPath), 0755); err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to create backup directory: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
 
@@ -127,6 +136,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	backupFile, err := os.Create(backupPath)
 	if err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to create backup file: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
 	defer backupFile.Close()
@@ -153,6 +163,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	for object := range objectCh {
 		if object.Err != nil {
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to list objects: %v", object.Err), filesCount, bytesCount, "")
+			s.updateBackupJobStatus(job.ID, "failed")
 			return
 		}
 
@@ -160,6 +171,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 		obj, err := client.GetObject(ctx, job.SourceBucket, object.Key, minio.GetObjectOptions{})
 		if err != nil {
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get object %s: %v", object.Key, err), filesCount, bytesCount, "")
+			s.updateBackupJobStatus(job.ID, "failed")
 			return
 		}
 
@@ -174,6 +186,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 		if err := tarWriter.WriteHeader(header); err != nil {
 			obj.Close()
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to write tar header for %s: %v", object.Key, err), filesCount, bytesCount, "")
+			s.updateBackupJobStatus(job.ID, "failed")
 			return
 		}
 
@@ -182,6 +195,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 
 		if err != nil {
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to write object %s: %v", object.Key, err), filesCount, bytesCount, "")
+			s.updateBackupJobStatus(job.ID, "failed")
 			return
 		}
 
@@ -189,9 +203,10 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 		bytesCount += written
 	}
 
-	// Update backup job last run time
+	// Update backup job last run time and status
 	now := time.Now()
 	job.LastRun = &now
+	job.Status = "completed"
 	if job.Schedule != "" {
 		nextRun, _ := s.calculateNextRun(job.Schedule)
 		job.NextRun = &nextRun
@@ -213,6 +228,11 @@ func (s *BackupService) updateBackupRun(run *models.BackupRun, status, errorMsg 
 	run.BackupPath = backupPath
 
 	s.db.Save(run)
+}
+
+// updateBackupJobStatus updates the backup job status
+func (s *BackupService) updateBackupJobStatus(jobID uint, status string) {
+	s.db.Model(&models.BackupJob{}).Where("id = ?", jobID).Update("status", status)
 }
 
 // RestoreBackup restores a backup to a RustFS instance

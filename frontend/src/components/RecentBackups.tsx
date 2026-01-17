@@ -30,6 +30,8 @@ export default function RecentBackups() {
   const { data: backups, isLoading } = useQuery<BackupJob[]>({
     queryKey: ['recent-backups'],
     queryFn: () => api.get('/backup/jobs?limit=5').then(res => res.data),
+    refetchInterval: 10000, // Refresh every 10 seconds
+    staleTime: 8000, // Consider data stale after 8 seconds
   });
 
   if (isLoading) {

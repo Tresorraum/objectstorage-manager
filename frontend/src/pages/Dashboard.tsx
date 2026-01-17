@@ -17,6 +17,14 @@ interface DashboardStats {
   totalStorage: number;
   totalBackups: number;
   activeAlerts: number;
+  completedBackupsToday: number;
+  runningBackups: number;
+  failedBackupsToday: number;
+  lastBackupTime?: string;
+  instancesChange: string;
+  storageChange: string;
+  backupsChange: string;
+  alertsChange: string;
   storageUsage: Array<{
     date: string;
     usage: number;
@@ -27,7 +35,27 @@ export default function Dashboard() {
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],
     queryFn: () => api.get('/dashboard/stats').then(res => res.data),
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 25000, // Consider data stale after 25 seconds
   });
+
+  const formatLastBackupTime = (lastBackupTime?: string) => {
+    if (!lastBackupTime) return 'No recent backups';
+    
+    const backupDate = new Date(lastBackupTime);
+    const now = new Date();
+    const diffMs = now.getTime() - backupDate.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (diffHours > 0) {
+      return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    } else if (diffMinutes > 0) {
+      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+    } else {
+      return 'Just now';
+    }
+  };
 
   if (isLoading) {
     return (
@@ -54,28 +82,28 @@ export default function Dashboard() {
           value={stats?.totalInstances || 0}
           icon={ServerIcon}
           color="blue"
-          change="+2 from last month"
+          change={stats?.instancesChange || "No change"}
         />
         <StatsCard
           title="Total Storage"
           value={`${((stats?.totalStorage || 0) / (1024 ** 3)).toFixed(2)} GB`}
           icon={ChartBarIcon}
           color="green"
-          change="+12% from last month"
+          change={stats?.storageChange || "No change"}
         />
         <StatsCard
           title="Backup Jobs"
           value={stats?.totalBackups || 0}
           icon={CloudArrowUpIcon}
           color="purple"
-          change="3 completed today"
+          change={`${stats?.completedBackupsToday || 0} completed today`}
         />
         <StatsCard
           title="Active Alerts"
           value={stats?.activeAlerts || 0}
           icon={ExclamationTriangleIcon}
           color="red"
-          change="2 resolved today"
+          change={stats?.alertsChange || "No change"}
         />
       </div>
 
@@ -122,14 +150,19 @@ export default function Dashboard() {
             <div className="bg-green-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                  <div className={`w-3 h-3 rounded-full ${
+                    (stats?.runningBackups || 0) > 0 ? 'bg-yellow-400' : 'bg-green-400'
+                  }`}></div>
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-green-800">
-                    All Systems Operational
+                    {(stats?.runningBackups || 0) > 0 ? 'Backups Running' : 'All Systems Operational'}
                   </p>
                   <p className="text-sm text-green-600">
-                    99.9% uptime this month
+                    {(stats?.runningBackups || 0) > 0 
+                      ? `${stats?.runningBackups} backup${(stats?.runningBackups || 0) > 1 ? 's' : ''} in progress`
+                      : 'All services running normally'
+                    }
                   </p>
                 </div>
               </div>
@@ -138,14 +171,16 @@ export default function Dashboard() {
             <div className="bg-blue-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                  <div className={`w-3 h-3 rounded-full ${
+                    stats?.lastBackupTime ? 'bg-blue-400' : 'bg-gray-400'
+                  }`}></div>
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-blue-800">
                     Backup Status
                   </p>
                   <p className="text-sm text-blue-600">
-                    Last backup: 2 hours ago
+                    Last backup: {formatLastBackupTime(stats?.lastBackupTime)}
                   </p>
                 </div>
               </div>
@@ -154,14 +189,19 @@ export default function Dashboard() {
             <div className="bg-purple-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <div className="w-3 h-3 bg-purple-400 rounded-full"></div>
+                  <div className={`w-3 h-3 rounded-full ${
+                    (stats?.failedBackupsToday || 0) > 0 ? 'bg-red-400' : 'bg-purple-400'
+                  }`}></div>
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-purple-800">
-                    Performance
+                    Today's Status
                   </p>
                   <p className="text-sm text-purple-600">
-                    Avg response: 45ms
+                    {(stats?.failedBackupsToday || 0) > 0 
+                      ? `${stats?.failedBackupsToday} failed backup${(stats?.failedBackupsToday || 0) > 1 ? 's' : ''}`
+                      : `${stats?.completedBackupsToday || 0} successful backup${(stats?.completedBackupsToday || 0) !== 1 ? 's' : ''}`
+                    }
                   </p>
                 </div>
               </div>

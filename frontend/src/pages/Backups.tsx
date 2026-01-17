@@ -45,6 +45,8 @@ export default function Backups() {
   const { data: backupJobs, isLoading } = useQuery<BackupJob[]>({
     queryKey: ['backup-jobs'],
     queryFn: () => api.get('/backup/jobs').then(res => res.data),
+    refetchInterval: 5000, // Refresh every 5 seconds
+    staleTime: 4000, // Consider data stale after 4 seconds
   });
 
   const { data: instances } = useQuery<RustFSInstance[]>({
