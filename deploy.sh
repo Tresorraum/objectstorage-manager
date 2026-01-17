@@ -1,3 +1,27 @@
+#!/bin/bash
+
+set -e
+
+echo "🚀 Deploying RustFS Manager..."
+
+# Load environment variables
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+else
+    echo "❌ Error: .env file not found"
+    exit 1
+fi
+
+# Check if SSL certificates exist
+if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+    echo "⚠️  No SSL certificate found. Please run ./setup-ssl.sh first"
+    exit 1
+fi
+
+# Ensure nginx config has SSL
+if ! grep -q "listen 443 ssl" nginx/nginx.conf; then
+    echo "⚠️  Nginx config missing SSL. Restoring SSL configuration..."
+    cat > nginx/nginx.conf << 'EOF'
 events {
     worker_connections 1024;
 }
@@ -57,3 +81,29 @@ http {
         }
     }
 }
+EOF
+fi
+
+echo "📦 Pulling latest images from Docker Hub..."
+docker compose -f docker-compose.prod.yml pull
+
+echo "🛑 Stopping containers..."
+docker compose -f docker-compose.prod.yml down
+
+echo "🚀 Starting containers..."
+docker compose -f docker-compose.prod.yml up -d
+
+echo "⏳ Waiting for services to be ready..."
+sleep 5
+
+echo ""
+echo "✅ Deployment complete!"
+echo ""
+echo "🌐 Your site: https://$DOMAIN"
+echo ""
+echo "📊 Check status:"
+echo "  docker ps"
+echo ""
+echo "📝 View logs:"
+echo "  docker compose -f docker-compose.prod.yml logs -f"
+echo ""
