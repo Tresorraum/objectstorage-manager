@@ -23,7 +23,7 @@ const navigation = [
   { name: 'Backups', href: '/backups', icon: CloudArrowUpIcon },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, premium: true },
   { name: 'Activity Logs', href: '/activity-logs', icon: DocumentTextIcon, premium: true },
-  { name: 'Team', href: '/team', icon: UserGroupIcon, premium: true },
+  // { name: 'Team', href: '/team', icon: UserGroupIcon, premium: true }, // Commented out for future use
   { name: 'API Keys', href: '/api-keys', icon: KeyIcon, premium: true },
   { name: 'Settings', href: '/settings', icon: CogIcon },
 ];
