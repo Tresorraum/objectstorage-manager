@@ -59,6 +59,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Password: req.Password,
 		Role:     req.Role,
 		Active:   true,
+		IsPremium: true,
 	}
 
 	if err := h.userService.CreateUser(user); err != nil {
