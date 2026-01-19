@@ -14,7 +14,7 @@ import Settings from './pages/Settings';
 import Subscribe from './pages/Subscribe';
 import Analytics from './pages/Analytics';
 import ActivityLogs from './pages/ActivityLogs';
-import Team from './pages/Team';
+// import Team from './pages/Team'; // Commented out for future use
 import APIKeys from './pages/APIKeys';
 
 const queryClient = new QueryClient({
@@ -64,7 +64,7 @@ function AppRoutes() {
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/activity-logs" element={<ActivityLogs />} />
-                <Route path="/team" element={<Team />} />
+                {/* <Route path="/team" element={<Team />} /> */} {/* Commented out for future use */}
                 <Route path="/api-keys" element={<APIKeys />} />
                 <Route path="/subscribe" element={<Subscribe />} />
                 <Route path="/settings" element={<Settings />} />
