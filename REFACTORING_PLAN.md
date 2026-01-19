@@ -94,10 +94,19 @@ frontend/src/pages/Register/
 - [x] Refactor index.tsx to use new components
 - [x] Delete old Backups.tsx file
 
-### Phase 2: Instances Page
-- [ ] Create directory structure
-- [ ] Extract components
-- [ ] Refactor main file
+### Phase 2: Instances Page ✅ COMPLETE
+- [x] Create directory structure
+- [x] Create types.ts
+- [x] Create constants.ts
+- [x] Create InstanceTypeTabs.tsx
+- [x] Create InstanceTypeHeader.tsx
+- [x] Create InstanceCard.tsx
+- [x] Create InstanceForm.tsx
+- [x] Create EmptyState.tsx
+- [x] Create ComingSoonState.tsx
+- [x] Create UpgradeModal.tsx
+- [x] Refactor index.tsx to use new components
+- [x] Delete old Instances.tsx file
 
 ### Phase 3: Register Page
 - [ ] Create directory structure
