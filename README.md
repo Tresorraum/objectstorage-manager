@@ -1,34 +1,74 @@
 # RustFS Manager
 
-A comprehensive management dashboard for RustFS with backup, restore, monitoring, and administration features.
+A comprehensive backup management platform for object storage, PostgreSQL databases, and VPS servers. Built with Go, React, and TypeScript.
+
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Go Version](https://img.shields.io/badge/go-1.23-blue.svg)
+![Node Version](https://img.shields.io/badge/node-18-green.svg)
 
 ## Features
 
-- 📊 **Real-time Dashboard** - Monitor storage usage, performance metrics, and system health
-- 💾 **Backup & Restore** - Automated backup scheduling and restore operations with compression
-- 📈 **Analytics** - Usage statistics, performance graphs, and storage trends
-- 🔧 **Instance Management** - Manage multiple RustFS deployments with connection testing
-- 👥 **User Management** - Authentication, authorization, and user roles
-- 🚨 **Alerting** - System alerts and notifications for issues
-- 📋 **Audit Logs** - Track all operations and changes
-- 🔄 **Multi-Instance** - Manage multiple RustFS deployments from one dashboard
+### 🗄️ Multi-Source Backup Management
+- **Object Storage (S3-Compatible)** - Automated backups for S3-compatible storage
+- **PostgreSQL Databases** - Instant database dumps with local download or VPS upload
+- **VPS Servers** - Remote server file backups (coming soon)
 
-## Architecture
+### 📊 Comprehensive Dashboard
+- Real-time backup statistics
+- System health monitoring
+- Recent activity tracking
+- Upcoming backup schedule
+- Storage usage analytics
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   React UI      │◄──►│   Go Backend     │◄──►│   RustFS API    │
-│   (Frontend)    │    │   (API Server)   │    │   (Storage)     │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         │              ┌────────▼────────┐             │
-         │              │   PostgreSQL    │             │
-         │              │   (Metadata)    │             │
-         │              └─────────────────┘             │
-         │                                              │
-         └──────────────────────────────────────────────┘
-                        Docker Network
-```
+### 🔐 Instance Management
+- **Object Storage Instances** - Connect to S3-compatible storage (MinIO, AWS S3, etc.)
+- **PostgreSQL Instances** - Manage database connections with encrypted credentials
+- **VPS Instances** - Configure remote servers with SSH/password authentication
+
+### ⚡ Backup Operations
+- **Scheduled Backups** - Automated backup jobs with cron scheduling
+- **Instant Backups** - On-demand PostgreSQL database dumps
+- **Multiple Destinations** - Server storage or object storage
+- **Compression Options** - Gzip compression for efficient storage
+- **Retention Policies** - Automatic cleanup of old backups
+
+### 📈 Analytics & Monitoring
+- Backup success/failure rates
+- Storage usage trends
+- Performance metrics
+- Activity logs with filtering
+
+### 🎯 Premium Features
+- Server-side backup storage
+- Advanced analytics
+- Activity log history
+- Unlimited backup jobs
+- Priority support
+
+## Tech Stack
+
+### Backend
+- **Go 1.23** - High-performance backend API
+- **Gin** - HTTP web framework
+- **GORM** - ORM for database operations
+- **PostgreSQL** - Primary database
+- **Redis** - Caching and session management
+- **JWT** - Authentication
+- **AES-256-GCM** - Credential encryption
+
+### Frontend
+- **React 18** - UI framework
+- **TypeScript** - Type-safe JavaScript
+- **Vite** - Build tool and dev server
+- **TailwindCSS** - Utility-first CSS
+- **React Query** - Data fetching and caching
+- **React Router** - Client-side routing
+- **Heroicons** - Icon library
+
+### Infrastructure
+- **Docker** - Containerization
+- **Docker Compose** - Multi-container orchestration
+- **Nginx** - Reverse proxy and static file serving
 
 ## Quick Start
 
@@ -39,301 +79,309 @@ A comprehensive management dashboard for RustFS with backup, restore, monitoring
 ### Installation
 
 1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd rustfs-manager
-   ```
+```bash
+git clone https://github.com/yourusername/rustfs-manager.git
+cd rustfs-manager
+```
 
-2. **Start the application**
-   ```bash
-   # Production mode
-   make start
-   
-   # Or manually
-   docker-compose up -d
-   ```
+2. **Configure environment variables**
+```bash
+cp .env.example .env
+```
 
-3. **Access the dashboard**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8080
-   - Database: localhost:5432
-
-4. **Default Login**
-   - Create an account through the registration form
-   - First user will have admin privileges
-
-### Development Setup
-
-1. **Start in development mode**
-   ```bash
-   make dev
-   ```
-
-2. **Or manually with hot reload**
-   ```bash
-   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
-   ```
-
-## Usage
-
-### Managing RustFS Instances
-
-1. **Add Instance**
-   - Go to "Instances" page
-   - Click "Add Instance"
-   - Fill in RustFS connection details:
-     - Name: Friendly name for the instance
-     - Endpoint: RustFS server URL (e.g., `localhost:9000`)
-     - Access Key: S3-compatible access key
-     - Secret Key: S3-compatible secret key
-     - Region: AWS region (default: us-east-1)
-     - SSL: Enable/disable SSL connection
-
-2. **Test Connection**
-   - The system automatically tests connections when adding/updating instances
-   - Green status indicates successful connection
-
-### Creating Backup Jobs
-
-1. **Navigate to Backups**
-   - Go to "Backups" page
-   - Click "Create Backup Job"
-
-2. **Configure Backup**
-   - Name: Descriptive name for the backup job
-   - RustFS Instance: Select target instance
-   - Source Bucket: Bucket to backup
-   - Destination Path: Local path for backup storage
-   - Schedule: Cron expression for automated backups (optional)
-   - Retention: Number of days to keep backups
-   - Compression: Enable gzip compression
-
-3. **Run Backup**
-   - Manual: Click "Run" button on any backup job
-   - Automatic: Jobs with schedules run automatically
-
-### Monitoring and Dashboard
-
-- **Storage Usage**: View storage trends over time
-- **System Health**: Monitor system status and performance
-- **Recent Activity**: See latest backup jobs and their status
-- **Alerts**: View system alerts and notifications
-
-## API Documentation
-
-The backend provides a RESTful API with the following endpoints:
-
-### Authentication
-- `POST /api/v1/auth/login` - User login
-- `POST /api/v1/auth/register` - User registration
-- `POST /api/v1/auth/refresh` - Refresh JWT token
-
-### Dashboard
-- `GET /api/v1/dashboard/stats` - Get dashboard statistics
-- `GET /api/v1/dashboard/metrics` - Get system metrics
-- `GET /api/v1/dashboard/alerts` - Get recent alerts
-
-### RustFS Instances
-- `GET /api/v1/rustfs/instances` - List all instances
-- `POST /api/v1/rustfs/instances` - Create new instance
-- `GET /api/v1/rustfs/instances/:id` - Get instance details
-- `PUT /api/v1/rustfs/instances/:id` - Update instance
-- `DELETE /api/v1/rustfs/instances/:id` - Delete instance
-- `GET /api/v1/rustfs/instances/:id/buckets` - List buckets
-
-### Backup Jobs
-- `GET /api/v1/backup/jobs` - List all backup jobs
-- `POST /api/v1/backup/jobs` - Create new backup job
-- `GET /api/v1/backup/jobs/:id` - Get backup job details
-- `PUT /api/v1/backup/jobs/:id` - Update backup job
-- `DELETE /api/v1/backup/jobs/:id` - Delete backup job
-- `POST /api/v1/backup/jobs/:id/run` - Run backup job
-- `POST /api/v1/backup/restore` - Restore backup
-
-## Configuration
-
-### Environment Variables
-
-**Backend (.env)**
+Edit `.env` and set your configuration:
 ```env
+# Database
 DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=rustfs_manager
-DB_USER=rustfs_user
-DB_PASSWORD=rustfs_password
-JWT_SECRET=your-jwt-secret-change-this
+DB_USER=postgres
+DB_PASSWORD=your_secure_password
+
+# JWT Secret (generate a random string)
+JWT_SECRET=your_jwt_secret_key_here
+
+# Encryption Key (32 characters for AES-256)
+ENCRYPTION_KEY=your_32_character_encryption_key
+
+# API Port
 PORT=8080
 ```
 
-**Frontend**
-```env
-REACT_APP_API_URL=http://localhost:8080/api/v1
-```
-
-### Database
-
-The application uses PostgreSQL with automatic migrations. Database schema includes:
-- Users and authentication
-- RustFS instances
-- Backup jobs and runs
-- Metrics and monitoring data
-- Alerts and audit logs
-- System configuration
-
-## Development
-
-### Project Structure
-
-```
-rustfs-manager/
-├── backend/                 # Go backend application
-│   ├── internal/
-│   │   ├── config/         # Configuration management
-│   │   ├── database/       # Database connection and migrations
-│   │   ├── handlers/       # HTTP request handlers
-│   │   ├── middleware/     # Authentication and other middleware
-│   │   ├── models/         # Database models
-│   │   └── services/       # Business logic services
-│   ├── Dockerfile          # Production Docker image
-│   ├── Dockerfile.dev      # Development Docker image
-│   └── main.go            # Application entry point
-├── frontend/               # React frontend application
-│   ├── src/
-│   │   ├── components/     # Reusable React components
-│   │   ├── contexts/       # React contexts (Auth, etc.)
-│   │   ├── pages/          # Page components
-│   │   └── services/       # API client and utilities
-│   ├── Dockerfile          # Production Docker image
-│   └── package.json        # Node.js dependencies
-├── database/               # Database initialization
-├── docker-compose.yml      # Production deployment
-├── docker-compose.dev.yml  # Development overrides
-└── Makefile               # Build and deployment commands
-```
-
-### Available Commands
-
+3. **Start the application**
 ```bash
-# Start services
-make start              # Start all services
-make dev               # Start in development mode
-make stop              # Stop all services
-make restart           # Restart all services
-
-# Development
-make build             # Build all Docker images
-make logs              # View logs from all services
-make logs-backend      # View backend logs only
-make logs-frontend     # View frontend logs only
-
-# Database
-make db-migrate        # Run database migrations
-make db-seed           # Seed database with sample data
-make db-reset          # Reset database
-
-# Maintenance
-make clean             # Clean up containers and images
-make health            # Check service health
-make status            # Show service status
+docker-compose up -d
 ```
 
-### Adding New Features
+4. **Access the application**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8080
 
-1. **Backend Changes**
-   - Add models in `internal/models/`
-   - Create services in `internal/services/`
-   - Add handlers in `internal/handlers/`
-   - Update routes in `main.go`
+5. **Create your first user**
+Navigate to http://localhost:3000/register and create an account.
 
-2. **Frontend Changes**
-   - Add components in `src/components/`
-   - Create pages in `src/pages/`
-   - Update routing in `App.tsx`
-   - Add API calls in `src/services/`
+## Development Setup
+
+### Backend Development
+```bash
+cd backend
+go mod download
+go run main.go
+```
+
+### Frontend Development
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### Database Migrations
+```bash
+# The application automatically runs migrations on startup
+# Manual migration (if needed):
+docker-compose exec postgres psql -U $DB_USER -d $DB_NAME < database/init.sql
+```
+
+## Configuration
+
+### Object Storage Instance
+1. Navigate to **Instances** page
+2. Click **Add Object Storage Instance**
+3. Configure:
+   - Name
+   - Endpoint (e.g., `s3.amazonaws.com`)
+   - Access Key
+   - Secret Key
+   - Region
+   - SSL enabled/disabled
+
+### PostgreSQL Instance
+1. Navigate to **Instances** page
+2. Click **Add PostgreSQL Instance**
+3. Configure:
+   - Name
+   - Host and Port
+   - Database name
+   - Username and Password
+   - SSL enabled/disabled
+
+### VPS Instance
+1. Navigate to **Instances** page
+2. Click **Add VPS Instance**
+3. Configure:
+   - Name
+   - Host and Port
+   - Username
+   - Authentication (Password or SSH Key)
+   - Backup path on server
+
+## Usage
+
+### Creating Scheduled Backups
+
+1. Go to **Backups** → **Scheduled Backups** tab
+2. Click **Create Backup Job**
+3. Select source type (Object Storage)
+4. Choose source instance and bucket
+5. Select destination type:
+   - **Server Storage** - Compressed archives on server (Premium)
+   - **Object Storage** - Copy to another bucket
+6. Configure schedule (cron expression)
+7. Set retention policy
+8. Click **Create Backup Job**
+
+### PostgreSQL Instant Backups
+
+1. Go to **Backups** → **PostgreSQL** tab
+2. Click **Create Backup** on any database
+3. Choose destination:
+   - **Local Download** - Download SQL dump to your computer
+   - **Upload to VPS** - Upload to configured VPS server
+4. Click **Create Backup**
+
+### Viewing Backup History
+
+1. Go to **Backups** → **Scheduled Backups** tab
+2. Click **View History** on any backup job
+3. See all backup runs with:
+   - Status (completed/failed)
+   - Duration
+   - File count and size
+   - Error messages (if failed)
+
+## API Documentation
+
+### Authentication
+All API endpoints (except `/auth/login` and `/auth/register`) require JWT authentication.
+
+**Header:**
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+### Key Endpoints
+
+#### Authentication
+- `POST /api/v1/auth/register` - Register new user
+- `POST /api/v1/auth/login` - Login and get JWT token
+- `GET /api/v1/auth/me` - Get current user info
+
+#### Instances
+- `GET /api/v1/rustfs/instances` - List object storage instances
+- `POST /api/v1/rustfs/instances` - Create object storage instance
+- `GET /api/v1/postgres/instances` - List PostgreSQL instances
+- `POST /api/v1/postgres/instances` - Create PostgreSQL instance
+- `GET /api/v1/vps/instances` - List VPS instances
+- `POST /api/v1/vps/instances` - Create VPS instance
+
+#### Backups
+- `GET /api/v1/backup/jobs` - List backup jobs
+- `POST /api/v1/backup/jobs` - Create backup job
+- `POST /api/v1/backup/jobs/:id/run` - Run backup job manually
+- `POST /api/v1/postgres/backup` - Create PostgreSQL backup
+
+#### Analytics
+- `GET /api/v1/dashboard/stats` - Dashboard statistics
+- `GET /api/v1/analytics/storage` - Storage analytics
+- `GET /api/v1/activity-logs` - Activity logs
 
 ## Deployment
 
 ### Production Deployment
 
-1. **Configure Environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your production values
-   ```
+1. **Update environment variables**
+```bash
+cp .env.example .env.production
+# Edit .env.production with production values
+```
 
-2. **Deploy with Docker Compose**
-   ```bash
-   docker-compose up -d
-   ```
+2. **Build and deploy**
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
 
-3. **Setup SSL (Optional)**
-   ```bash
-   # Use nginx proxy or configure SSL certificates
-   # Update docker-compose.yml with SSL configuration
-   ```
+3. **Configure SSL (recommended)**
+```bash
+./setup-ssl.sh your-domain.com
+```
 
-### Scaling
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed deployment instructions.
 
-- **Backend**: Scale backend service with `docker-compose up -d --scale backend=3`
-- **Database**: Use PostgreSQL clustering for high availability
-- **Frontend**: Serve static files through CDN
+## Security
+
+### Credential Encryption
+- All sensitive credentials (passwords, SSH keys, access keys) are encrypted using AES-256-GCM
+- Encryption key must be 32 characters for AES-256
+- Credentials are only decrypted in memory when needed
+
+### Authentication
+- JWT-based authentication
+- Secure password hashing with bcrypt
+- Token expiration and refresh
+
+### Best Practices
+- Use strong passwords
+- Rotate encryption keys periodically
+- Enable SSL for all connections
+- Use SSH keys instead of passwords for VPS
+- Regularly update dependencies
+- Monitor activity logs
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Database Connection Failed**
-   - Check PostgreSQL container is running
-   - Verify database credentials in environment variables
-   - Ensure database is accessible from backend container
-
-2. **Frontend Can't Connect to Backend**
-   - Verify `REACT_APP_API_URL` environment variable
-   - Check backend is running on correct port
-   - Ensure CORS is properly configured
-
-3. **RustFS Connection Failed**
-   - Verify RustFS instance is running and accessible
-   - Check access key and secret key are correct
-   - Ensure network connectivity between containers
-
-4. **Backup Jobs Failing**
-   - Check backup destination path exists and is writable
-   - Verify source bucket exists and is accessible
-   - Review backup job logs in the dashboard
-
-### Logs and Debugging
-
+### Backend won't start
 ```bash
-# View all logs
-make logs
-
-# View specific service logs
+# Check logs
 docker-compose logs backend
-docker-compose logs frontend
-docker-compose logs postgres
 
-# Follow logs in real-time
-docker-compose logs -f backend
+# Common issues:
+# - Database connection failed: Check DB credentials in .env
+# - Port already in use: Change PORT in .env
+# - Missing encryption key: Set ENCRYPTION_KEY in .env
+```
+
+### Frontend won't connect to backend
+```bash
+# Check frontend environment
+cat frontend/.env.production
+
+# Should have:
+VITE_API_URL=http://localhost:8080/api/v1
+
+# Restart frontend
+docker-compose restart frontend
+```
+
+### PostgreSQL backup fails
+```bash
+# Ensure pg_dump is installed in backend container
+docker-compose exec backend pg_dump --version
+
+# If not installed, rebuild:
+docker-compose build backend
+docker-compose up -d
+```
+
+### VPS connection fails
+- Verify SSH credentials are correct
+- Check firewall allows SSH connections
+- Ensure user has write permissions to backup path
+- Test SSH connection manually:
+```bash
+ssh username@vps-host
 ```
 
 ## Contributing
 
+We welcome contributions! Please follow these steps:
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Guidelines
+- Follow Go best practices and conventions
+- Use TypeScript for all frontend code
+- Write meaningful commit messages
+- Add tests for new features
+- Update documentation
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Components
+## Support
 
-- **Backend**: Go + Gin + GORM + PostgreSQL
-- **Frontend**: React + TypeScript + Tailwind CSS + Vite
-- **Database**: PostgreSQL with automatic migrations
-- **Deployment**: Docker + Docker Compose
-- **Authentication**: JWT-based authentication
-- **Storage**: S3-compatible API (RustFS)
+- **Documentation**: [Full documentation](DEPLOY.md)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/rustfs-manager/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/rustfs-manager/discussions)
+
+## Roadmap
+
+### Upcoming Features
+- [ ] VPS file backup implementation
+- [ ] MongoDB backup support
+- [ ] MySQL backup support
+- [ ] Backup restoration interface
+- [ ] Email notifications
+- [ ] Webhook integrations
+- [ ] Multi-user team support
+- [ ] Role-based access control
+- [ ] Backup encryption at rest
+- [ ] Incremental backups
+- [ ] Backup verification
+- [ ] Mobile app
+
+## Acknowledgments
+
+- Built with [Go](https://golang.org/)
+- UI powered by [React](https://reactjs.org/)
+- Styled with [TailwindCSS](https://tailwindcss.com/)
+- Icons by [Heroicons](https://heroicons.com/)
+
+---
+
+Made with ❤️ by the RustFS Manager team
