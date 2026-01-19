@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/services"
@@ -34,25 +35,38 @@ func (h *VPSHandler) CreateInstance(c *gin.Context) {
 		return
 	}
 
-	instance, err := h.service.CreateInstance(userID, &req)
+	// Debug: Log received data (remove in production)
+	log.Printf("VPS Create Request - AuthType: %s, Password length: %d, SSHKey length: %d",
+		req.AuthType, len(req.Password), len(req.SSHKey))
+
+	// Create temporary instance for connection testing
+	tempInstance, err := h.service.CreateInstance(userID, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	// Test connection before finalizing
+	if err := h.service.TestConnection(tempInstance); err != nil {
+		// Delete the instance if connection fails
+		h.service.DeleteInstance(tempInstance.ID, userID)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Connection test failed: " + err.Error()})
+		return
+	}
+
 	response := dto.VPSInstanceResponse{
-		ID:          instance.ID,
-		UserID:      instance.UserID,
-		Name:        instance.Name,
-		Host:        instance.Host,
-		Port:        instance.Port,
-		Username:    instance.Username,
-		AuthType:    instance.AuthType,
-		BackupPath:  instance.BackupPath,
-		Description: instance.Description,
-		Status:      instance.Status,
-		CreatedAt:   instance.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:   instance.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:          tempInstance.ID,
+		UserID:      tempInstance.UserID,
+		Name:        tempInstance.Name,
+		Host:        tempInstance.Host,
+		Port:        tempInstance.Port,
+		Username:    tempInstance.Username,
+		AuthType:    tempInstance.AuthType,
+		BackupPath:  tempInstance.BackupPath,
+		Description: tempInstance.Description,
+		Status:      tempInstance.Status,
+		CreatedAt:   tempInstance.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:   tempInstance.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	c.JSON(http.StatusCreated, response)
@@ -168,6 +182,14 @@ func (h *VPSHandler) UpdateInstance(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Test connection after update if credentials were changed
+	if req.Host != "" || req.Port > 0 || req.Username != "" || req.Password != "" || req.SSHKey != "" {
+		if err := h.service.TestConnection(instance); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Connection test failed after update: " + err.Error(), "warning": "Instance updated but connection failed"})
+			return
+		}
 	}
 
 	response := dto.VPSInstanceResponse{

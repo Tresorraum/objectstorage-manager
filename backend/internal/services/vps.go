@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
 	"rustfs-manager/internal/repository"
@@ -239,40 +240,75 @@ func (s *VPSService) DeleteInstance(id, userID uint) error {
 
 // TestConnection tests the SSH connection to a VPS instance
 func (s *VPSService) TestConnection(instance *models.VPSInstance) error {
-	var authMethod ssh.AuthMethod
+	var authMethods []ssh.AuthMethod
 
 	if instance.AuthType == "password" {
+		if instance.Password == "" {
+			return fmt.Errorf("password is empty for password authentication")
+		}
 		password, err := s.decrypt(instance.Password)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt password: %w", err)
 		}
-		authMethod = ssh.Password(password)
-	} else {
+		if password == "" {
+			return fmt.Errorf("decrypted password is empty")
+		}
+
+		// Add both password and keyboard-interactive methods
+		log.Printf("Testing VPS connection - Host: %s, Port: %d, User: %s, Password length: %d",
+			instance.Host, instance.Port, instance.Username, len(password))
+
+		authMethods = []ssh.AuthMethod{
+			ssh.Password(password),
+			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+				log.Printf("Keyboard-interactive auth - User: %s, Questions: %d", user, len(questions))
+				answers := make([]string, len(questions))
+				for i := range questions {
+					answers[i] = password
+				}
+				return answers, nil
+			}),
+		}
+	} else if instance.AuthType == "ssh_key" {
+		if instance.SSHKey == "" {
+			return fmt.Errorf("SSH key is empty for key authentication")
+		}
 		keyData, err := s.decrypt(instance.SSHKey)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt SSH key: %w", err)
+		}
+		if keyData == "" {
+			return fmt.Errorf("decrypted SSH key is empty")
 		}
 
 		signer, err := ssh.ParsePrivateKey([]byte(keyData))
 		if err != nil {
 			return fmt.Errorf("failed to parse SSH key: %w", err)
 		}
-		authMethod = ssh.PublicKeys(signer)
+		authMethods = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+	} else {
+		return fmt.Errorf("invalid auth type: %s", instance.AuthType)
 	}
 
 	config := &ssh.ClientConfig{
 		User:            instance.Username,
-		Auth:            []ssh.AuthMethod{authMethod},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // In production, use proper host key verification
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         10 * time.Second,
 	}
+
+	log.Printf("Attempting SSH connection to %s:%d as user %s with %d auth methods",
+		instance.Host, instance.Port, instance.Username, len(authMethods))
 
 	addr := fmt.Sprintf("%s:%d", instance.Host, instance.Port)
 	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
+		log.Printf("SSH connection failed: %v", err)
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 	defer client.Close()
+
+	log.Printf("SSH connection successful!")
 
 	// Test if backup path exists or can be created
 	session, err := client.NewSession()
