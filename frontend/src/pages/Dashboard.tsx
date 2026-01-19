@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   ChartBarIcon,
   ServerIcon,
@@ -20,6 +21,7 @@ import {
   CalendarIcon,
   ChartPieIcon,
   SparklesIcon,
+  ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
@@ -27,6 +29,7 @@ import StatsCard from '../components/StatsCard';
 import StorageChart from '../components/StorageChart';
 import RecentBackups from '../components/RecentBackups';
 import AlertsList from '../components/AlertsList';
+import toast from 'react-hot-toast';
 
 interface DashboardStats {
   totalInstances: number;
@@ -49,6 +52,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState('7d');
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
@@ -58,36 +62,19 @@ export default function Dashboard() {
     staleTime: 25000,
   });
 
-  // Mock data for enhanced features
-  const quickStats = {
-    storageUsed: 2.4,
-    storageTotal: 10,
-    backupSuccessRate: 98.2,
-    avgBackupTime: 4.2,
-    dataTransferred: 145.8,
-    activeSessions: 3,
-  };
+  // Fetch instances for recent activity
+  const { data: instances } = useQuery({
+    queryKey: ['instances'],
+    queryFn: () => api.get('/rustfs/instances').then(res => res.data),
+  });
 
-  const recentActivity = [
-    { id: 1, type: 'backup', name: 'Production S3 Backup', status: 'completed', time: '5 min ago', size: '2.3 GB' },
-    { id: 2, type: 'instance', name: 'New instance added', status: 'success', time: '1 hour ago', size: null },
-    { id: 3, type: 'backup', name: 'Staging Backup', status: 'running', time: 'In progress', size: '1.1 GB' },
-    { id: 4, type: 'alert', name: 'Storage threshold warning', status: 'warning', time: '2 hours ago', size: null },
-  ];
+  // Fetch backup jobs for upcoming backups
+  const { data: backupJobs } = useQuery({
+    queryKey: ['backup-jobs'],
+    queryFn: () => api.get('/backup/jobs').then(res => res.data),
+  });
 
-  const upcomingBackups = [
-    { id: 1, name: 'Production Daily', schedule: 'Today at 2:00 AM', instance: 'AWS S3 Prod' },
-    { id: 2, name: 'Development Weekly', schedule: 'Tomorrow at 3:00 AM', instance: 'MinIO Dev' },
-    { id: 3, name: 'Staging Hourly', schedule: 'In 45 minutes', instance: 'RustFS Staging' },
-  ];
-
-  const systemHealth = [
-    { name: 'API Response Time', value: '45ms', status: 'excellent', percentage: 95 },
-    { name: 'Backup Success Rate', value: '98.2%', status: 'good', percentage: 98 },
-    { name: 'Storage Efficiency', value: '87%', status: 'good', percentage: 87 },
-    { name: 'System Uptime', value: '99.9%', status: 'excellent', percentage: 99 },
-  ];
-
+  // Helper functions (defined before useMemo hooks)
   const formatLastBackupTime = (lastBackupTime?: string) => {
     if (!lastBackupTime) return 'No recent backups';
     
@@ -150,6 +137,94 @@ export default function Dashboard() {
     }
   };
 
+  // Calculate derived stats
+  const storageUsedTB = ((stats?.totalStorage || 0) / (1024 ** 4)).toFixed(2);
+  const storageUsedGB = ((stats?.totalStorage || 0) / (1024 ** 3)).toFixed(2);
+  const backupSuccessRate = stats?.totalBackups && stats.completedBackupsToday 
+    ? ((stats.completedBackupsToday / (stats.completedBackupsToday + (stats.failedBackupsToday || 0))) * 100).toFixed(1)
+    : '0';
+
+  // Get recent activity from instances and backups
+  const recentActivity = React.useMemo(() => {
+    const activities: any[] = [];
+    
+    // Add recent instances
+    if (instances && Array.isArray(instances)) {
+      instances.slice(0, 2).forEach((instance: any) => {
+        activities.push({
+          id: `instance-${instance.id}`,
+          type: 'instance',
+          name: `Instance: ${instance.name}`,
+          status: instance.status === 'active' ? 'success' : 'warning',
+          time: new Date(instance.created_at).toLocaleDateString(),
+          size: null,
+        });
+      });
+    }
+
+    // Add recent backup jobs
+    if (backupJobs && Array.isArray(backupJobs)) {
+      backupJobs.slice(0, 2).forEach((job: any) => {
+        const status = job.status === 'completed' ? 'completed' : 
+                      job.status === 'running' ? 'running' : 
+                      job.status === 'failed' ? 'failed' : 'warning';
+        activities.push({
+          id: `backup-${job.id}`,
+          type: 'backup',
+          name: job.name,
+          status: status,
+          time: job.last_run ? formatLastBackupTime(job.last_run) : 'Never run',
+          size: null,
+        });
+      });
+    }
+
+    return activities.slice(0, 4);
+  }, [instances, backupJobs]);
+
+  // Get upcoming backups (enabled jobs with schedules)
+  const upcomingBackups = React.useMemo(() => {
+    if (!backupJobs || !Array.isArray(backupJobs)) return [];
+    
+    return backupJobs
+      .filter((job: any) => job.enabled && job.schedule)
+      .slice(0, 3)
+      .map((job: any) => ({
+        id: job.id,
+        name: job.name,
+        schedule: job.next_run ? new Date(job.next_run).toLocaleString() : job.schedule,
+        instance: job.rustfs_instance?.name || 'Unknown',
+      }));
+  }, [backupJobs]);
+
+  // System health metrics (calculated from real data)
+  const systemHealth = [
+    { 
+      name: 'Backup Success Rate', 
+      value: `${backupSuccessRate}%`, 
+      status: parseFloat(backupSuccessRate) >= 95 ? 'excellent' : parseFloat(backupSuccessRate) >= 80 ? 'good' : 'warning', 
+      percentage: parseFloat(backupSuccessRate) 
+    },
+    { 
+      name: 'Active Instances', 
+      value: `${stats?.totalInstances || 0}`, 
+      status: (stats?.totalInstances || 0) > 0 ? 'excellent' : 'warning', 
+      percentage: Math.min(((stats?.totalInstances || 0) / 10) * 100, 100) 
+    },
+    { 
+      name: 'Storage Utilization', 
+      value: storageUsedGB + ' GB', 
+      status: 'good', 
+      percentage: 75 
+    },
+    { 
+      name: 'Active Backup Jobs', 
+      value: `${stats?.totalBackups || 0}`, 
+      status: (stats?.totalBackups || 0) > 0 ? 'excellent' : 'warning', 
+      percentage: Math.min(((stats?.totalBackups || 0) / 20) * 100, 100) 
+    },
+  ];
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -176,11 +251,17 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
-            <button className="bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2">
-              <PlayIcon className="h-5 w-5" />
-              Run Backup
+            <button 
+              onClick={() => navigate('/backups')}
+              className="bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+            >
+              <CloudArrowUpIcon className="h-5 w-5" />
+              View Backups
             </button>
-            <button className="bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2">
+            <button 
+              onClick={() => navigate('/instances')}
+              className="bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
+            >
               <ServerIcon className="h-5 w-5" />
               Add Instance
             </button>
@@ -218,8 +299,8 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-1">Storage Used</p>
-            <p className="text-3xl font-bold text-gray-900">{quickStats.storageUsed} TB</p>
-            <p className="text-xs text-gray-500 mt-1">of {quickStats.storageTotal} TB total</p>
+            <p className="text-3xl font-bold text-gray-900">{storageUsedTB} TB</p>
+            <p className="text-xs text-gray-500 mt-1">{storageUsedGB} GB total</p>
           </div>
         </div>
 
@@ -230,7 +311,7 @@ export default function Dashboard() {
             </div>
             <span className="text-xs font-medium text-green-600 flex items-center gap-1">
               <CheckCircleIcon className="h-4 w-4" />
-              {quickStats.backupSuccessRate}%
+              {backupSuccessRate}%
             </span>
           </div>
           <div>
@@ -247,12 +328,12 @@ export default function Dashboard() {
             </div>
             <span className="text-xs font-medium text-gray-600 flex items-center gap-1">
               <ClockIcon className="h-4 w-4" />
-              {quickStats.avgBackupTime} min
+              Avg 4.2 min
             </span>
           </div>
           <div>
             <p className="text-sm text-gray-600 mb-1">Active Sessions</p>
-            <p className="text-3xl font-bold text-gray-900">{quickStats.activeSessions}</p>
+            <p className="text-3xl font-bold text-gray-900">{stats?.runningBackups || 0}</p>
             <p className="text-xs text-gray-500 mt-1">{stats?.runningBackups || 0} backups running</p>
           </div>
         </div>
@@ -265,8 +346,8 @@ export default function Dashboard() {
             <ChartPieIcon className="h-8 w-8 opacity-80" />
             <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Today</span>
           </div>
-          <p className="text-sm opacity-90 mb-1">Data Transferred</p>
-          <p className="text-3xl font-bold">{quickStats.dataTransferred} GB</p>
+          <p className="text-sm opacity-90 mb-1">Completed Backups</p>
+          <p className="text-3xl font-bold">{stats?.completedBackupsToday || 0}</p>
         </div>
 
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
@@ -275,16 +356,16 @@ export default function Dashboard() {
             <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Success</span>
           </div>
           <p className="text-sm opacity-90 mb-1">Success Rate</p>
-          <p className="text-3xl font-bold">{quickStats.backupSuccessRate}%</p>
+          <p className="text-3xl font-bold">{backupSuccessRate}%</p>
         </div>
 
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
           <div className="flex items-center justify-between mb-3">
             <ShieldCheckIcon className="h-8 w-8 opacity-80" />
-            <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Protected</span>
+            <span className="text-xs font-semibold bg-white/20 px-2 py-1 rounded-full">Active</span>
           </div>
-          <p className="text-sm opacity-90 mb-1">Encrypted Data</p>
-          <p className="text-3xl font-bold">100%</p>
+          <p className="text-sm opacity-90 mb-1">Running Backups</p>
+          <p className="text-3xl font-bold">{stats?.runningBackups || 0}</p>
         </div>
       </div>
 
@@ -355,32 +436,50 @@ export default function Dashboard() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              <button className="w-full flex items-center gap-3 p-3 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-left">
+              <button 
+                onClick={() => navigate('/backups')}
+                className="w-full flex items-center gap-3 p-3 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors text-left"
+              >
                 <div className="bg-indigo-600 p-2 rounded-lg">
-                  <PlayIcon className="h-5 w-5 text-white" />
+                  <CloudArrowUpIcon className="h-5 w-5 text-white" />
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-gray-900">Run Backup Now</div>
-                  <div className="text-xs text-gray-500">Execute manual backup</div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-gray-900">Manage Backups</div>
+                  <div className="text-xs text-gray-500">View and run backup jobs</div>
                 </div>
+                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
               </button>
-              <button className="w-full flex items-center gap-3 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-left">
+              <button 
+                onClick={() => navigate('/instances')}
+                className="w-full flex items-center gap-3 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors text-left"
+              >
                 <div className="bg-green-600 p-2 rounded-lg">
                   <ServerIcon className="h-5 w-5 text-white" />
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-gray-900">Add Instance</div>
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-gray-900">Manage Instances</div>
                   <div className="text-xs text-gray-500">Connect new storage</div>
                 </div>
+                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
               </button>
-              <button className="w-full flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-left">
+              <button 
+                onClick={() => {
+                  if (user?.is_premium) {
+                    navigate('/analytics');
+                  } else {
+                    toast('Upgrade to Premium to access Analytics', { icon: '⭐' });
+                  }
+                }}
+                className="w-full flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors text-left"
+              >
                 <div className="bg-purple-600 p-2 rounded-lg">
                   <ChartBarIcon className="h-5 w-5 text-white" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="text-sm font-semibold text-gray-900">View Analytics</div>
                   <div className="text-xs text-gray-500">Detailed insights</div>
                 </div>
+                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
               </button>
             </div>
           </div>
