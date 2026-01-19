@@ -15,7 +15,7 @@ import Subscribe from './pages/Subscribe';
 import Analytics from './pages/Analytics';
 import ActivityLogs from './pages/ActivityLogs';
 // import Team from './pages/Team'; // Commented out for future use
-import APIKeys from './pages/APIKeys';
+import Integrations from './pages/Integrations';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,7 +65,7 @@ function AppRoutes() {
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/activity-logs" element={<ActivityLogs />} />
                 {/* <Route path="/team" element={<Team />} /> */} {/* Commented out for future use */}
-                <Route path="/api-keys" element={<APIKeys />} />
+                <Route path="/integrations" element={<Integrations />} />
                 <Route path="/subscribe" element={<Subscribe />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>

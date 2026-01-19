@@ -14,6 +14,7 @@ import {
   KeyIcon,
   BellIcon,
   CreditCardIcon,
+  PuzzlePieceIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -24,7 +25,7 @@ const navigation = [
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, premium: true },
   { name: 'Activity Logs', href: '/activity-logs', icon: DocumentTextIcon, premium: true },
   // { name: 'Team', href: '/team', icon: UserGroupIcon, premium: true }, // Commented out for future use
-  { name: 'API Keys', href: '/api-keys', icon: KeyIcon, premium: true },
+  { name: 'Integrations', href: '/integrations', icon: PuzzlePieceIcon },
   { name: 'Settings', href: '/settings', icon: CogIcon },
 ];
 
