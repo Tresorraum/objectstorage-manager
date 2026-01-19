@@ -363,10 +363,23 @@ func (s *PostgresService) CreateBackupToVPS(postgresInstance *models.PostgresIns
 	}
 	defer sftpClient.Close()
 
-	// Ensure backup directory exists on VPS
-	if err := sftpClient.MkdirAll(vpsInstance.BackupPath); err != nil {
-		return "", fmt.Errorf("failed to create backup directory on VPS: %w", err)
+	// Check if backup directory exists, if not create it
+	_, err = sftpClient.Stat(vpsInstance.BackupPath)
+	if err != nil {
+		// Directory doesn't exist, try to create it
+		if err := sftpClient.MkdirAll(vpsInstance.BackupPath); err != nil {
+			return "", fmt.Errorf("failed to create backup directory '%s' on VPS (check permissions): %w", vpsInstance.BackupPath, err)
+		}
 	}
+
+	// Verify we can write to the directory by checking permissions
+	testPath := filepath.Join(vpsInstance.BackupPath, ".write_test")
+	testFile, err := sftpClient.Create(testPath)
+	if err != nil {
+		return "", fmt.Errorf("no write permission in backup directory '%s' (user: %s): %w", vpsInstance.BackupPath, vpsInstance.Username, err)
+	}
+	testFile.Close()
+	sftpClient.Remove(testPath) // Clean up test file
 
 	// Open source file
 	srcFile, err := os.Open(tempFile)
