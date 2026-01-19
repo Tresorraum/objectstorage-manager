@@ -4,11 +4,12 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
 	"rustfs-manager/internal/repository"
 	"rustfs-manager/internal/services"
+
+	"github.com/gin-gonic/gin"
 )
 
 type BackupHandler struct {
@@ -51,15 +52,35 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	if !exists {
 		isPremium = false
 	}
-	
+
 	// Check backup type restrictions
 	isPremiumBool, ok := isPremium.(bool)
 	if !ok {
 		isPremiumBool = false
 	}
-	
+
 	if req.BackupType == "server" && !isPremiumBool {
 		c.JSON(http.StatusForbidden, dto.NewErrorResponse(dto.ErrServerBackupRestricted))
+		return
+	}
+
+	// Validate source type
+	if req.SourceType != "object_storage" && req.SourceType != "postgres" && req.SourceType != "vps" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid source_type, must be object_storage, postgres, or vps"})
+		return
+	}
+
+	// Validate source instance based on source type
+	if req.SourceType == "object_storage" && req.RustFSInstanceID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "rustfs_instance_id is required for object_storage source"})
+		return
+	}
+	if req.SourceType == "postgres" && req.PostgresInstanceID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "postgres_instance_id is required for postgres source"})
+		return
+	}
+	if req.SourceType == "vps" && req.VPSInstanceID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "vps_instance_id is required for vps source"})
 		return
 	}
 
@@ -105,8 +126,12 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	job := &models.BackupJob{
 		UserID:                userID.(uint),
 		Name:                  req.Name,
+		SourceType:            req.SourceType,
 		RustFSInstanceID:      req.RustFSInstanceID,
+		PostgresInstanceID:    req.PostgresInstanceID,
+		VPSInstanceID:         req.VPSInstanceID,
 		SourceBucket:          req.SourceBucket,
+		SourcePath:            req.SourcePath,
 		BackupType:            req.BackupType,
 		DestinationPath:       req.DestinationPath,
 		DestinationInstanceID: req.DestinationInstanceID,
@@ -167,8 +192,12 @@ func (h *BackupHandler) UpdateJob(c *gin.Context) {
 
 	// Update job fields
 	job.Name = req.Name
+	job.SourceType = req.SourceType
 	job.RustFSInstanceID = req.RustFSInstanceID
+	job.PostgresInstanceID = req.PostgresInstanceID
+	job.VPSInstanceID = req.VPSInstanceID
 	job.SourceBucket = req.SourceBucket
+	job.SourcePath = req.SourcePath
 	job.BackupType = req.BackupType
 	job.DestinationPath = req.DestinationPath
 	job.DestinationInstanceID = req.DestinationInstanceID

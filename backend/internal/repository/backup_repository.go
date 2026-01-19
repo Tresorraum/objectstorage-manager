@@ -1,8 +1,9 @@
 package repository
 
 import (
-	"gorm.io/gorm"
 	"rustfs-manager/internal/models"
+
+	"gorm.io/gorm"
 )
 
 type BackupRepository interface {
@@ -13,7 +14,7 @@ type BackupRepository interface {
 	DeleteJob(id uint) error
 	ListJobs() ([]models.BackupJob, error)
 	CountJobsByUserID(userID uint) (int64, error)
-	
+
 	CreateRun(run *models.BackupRun) error
 	FindRunByID(id uint) (*models.BackupRun, error)
 	FindRunsByJobID(jobID uint) ([]models.BackupRun, error)
@@ -36,6 +37,8 @@ func (r *backupRepository) CreateJob(job *models.BackupJob) error {
 func (r *backupRepository) FindJobByID(id uint) (*models.BackupJob, error) {
 	var job models.BackupJob
 	err := r.db.Preload("RustFSInstance").
+		Preload("PostgresInstance").
+		Preload("VPSInstance").
 		Preload("DestinationInstance").
 		Preload("BackupRuns", func(db *gorm.DB) *gorm.DB {
 			return db.Order("started_at DESC").Limit(1)
@@ -51,6 +54,8 @@ func (r *backupRepository) FindJobsByUserID(userID uint) ([]models.BackupJob, er
 	var jobs []models.BackupJob
 	err := r.db.Where("user_id = ?", userID).
 		Preload("RustFSInstance").
+		Preload("PostgresInstance").
+		Preload("VPSInstance").
 		Preload("DestinationInstance").
 		Preload("BackupRuns", func(db *gorm.DB) *gorm.DB {
 			return db.Order("started_at DESC").Limit(1)
@@ -70,6 +75,8 @@ func (r *backupRepository) DeleteJob(id uint) error {
 func (r *backupRepository) ListJobs() ([]models.BackupJob, error) {
 	var jobs []models.BackupJob
 	err := r.db.Preload("RustFSInstance").
+		Preload("PostgresInstance").
+		Preload("VPSInstance").
 		Preload("DestinationInstance").
 		Preload("BackupRuns", func(db *gorm.DB) *gorm.DB {
 			return db.Order("started_at DESC").Limit(1)

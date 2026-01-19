@@ -1,10 +1,18 @@
 import React from 'react';
-import { ServerIcon, FolderIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { BackupFormData, RustFSInstance } from './types';
+import { 
+  ServerIcon, 
+  FolderIcon, 
+  ArrowDownTrayIcon,
+  CircleStackIcon,
+  CloudIcon
+} from '@heroicons/react/24/outline';
+import { BackupFormData, RustFSInstance, PostgresInstance, VPSInstance } from './types';
 
 interface BackupJobFormProps {
   formData: BackupFormData;
   instances: RustFSInstance[] | undefined;
+  postgresInstances: PostgresInstance[] | undefined;
+  vpsInstances: VPSInstance[] | undefined;
   isSubmitting: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onChange: (data: Partial<BackupFormData>) => void;
@@ -14,6 +22,8 @@ interface BackupJobFormProps {
 export default function BackupJobForm({
   formData,
   instances,
+  postgresInstances,
+  vpsInstances,
   isSubmitting,
   onSubmit,
   onChange,
@@ -21,6 +31,7 @@ export default function BackupJobForm({
 }: BackupJobFormProps) {
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {/* Job Name */}
       <div>
         <label className="input-label">Job Name</label>
         <input
@@ -33,39 +44,148 @@ export default function BackupJobForm({
         />
       </div>
 
-      <div>
-        <label className="input-label">Source RustFS Instance</label>
-        <select
-          required
-          className="input-field"
-          value={formData.rustfs_instance_id}
-          onChange={(e) => onChange({ rustfs_instance_id: e.target.value })}
-        >
-          <option value="">Select source instance</option>
-          {instances?.map((instance) => (
-            <option key={instance.id} value={instance.id}>
-              {instance.name}
-            </option>
-          ))}
-        </select>
+      {/* Source Type Selection */}
+      <div className="border-t border-gray-200 pt-4">
+        <label className="input-label">Backup Source Type</label>
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            type="button"
+            onClick={() => onChange({ source_type: 'object_storage' })}
+            className={`p-3 sm:p-4 border-2 rounded-lg text-left transition-all ${
+              formData.source_type === 'object_storage'
+                ? 'border-indigo-600 bg-indigo-50'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            <CircleStackIcon className={`h-5 w-5 sm:h-6 sm:w-6 mb-2 ${formData.source_type === 'object_storage' ? 'text-indigo-600' : 'text-gray-400'}`} />
+            <div className="font-semibold text-xs sm:text-sm">Object Storage</div>
+            <div className="text-xs text-gray-500 mt-1 hidden sm:block">S3-compatible buckets</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange({ source_type: 'postgres' })}
+            className={`p-3 sm:p-4 border-2 rounded-lg text-left transition-all ${
+              formData.source_type === 'postgres'
+                ? 'border-blue-600 bg-blue-50'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            <ServerIcon className={`h-5 w-5 sm:h-6 sm:w-6 mb-2 ${formData.source_type === 'postgres' ? 'text-blue-600' : 'text-gray-400'}`} />
+            <div className="font-semibold text-xs sm:text-sm">PostgreSQL</div>
+            <div className="text-xs text-gray-500 mt-1 hidden sm:block">Database dumps</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange({ source_type: 'vps' })}
+            className={`p-3 sm:p-4 border-2 rounded-lg text-left transition-all ${
+              formData.source_type === 'vps'
+                ? 'border-purple-600 bg-purple-50'
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            <CloudIcon className={`h-5 w-5 sm:h-6 sm:w-6 mb-2 ${formData.source_type === 'vps' ? 'text-purple-600' : 'text-gray-400'}`} />
+            <div className="font-semibold text-xs sm:text-sm">VPS</div>
+            <div className="text-xs text-gray-500 mt-1 hidden sm:block">Server files/folders</div>
+          </button>
+        </div>
       </div>
 
-      <div>
-        <label className="input-label">Source Bucket</label>
-        <input
-          type="text"
-          required
-          placeholder="my-bucket"
-          className="input-field"
-          value={formData.source_bucket}
-          onChange={(e) => onChange({ source_bucket: e.target.value })}
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          The bucket name from your RustFS instance to backup
-        </p>
-      </div>
+      {/* Source Instance Selection */}
+      {formData.source_type === 'object_storage' && (
+        <>
+          <div>
+            <label className="input-label">Source Object Storage Instance</label>
+            <select
+              required
+              className="input-field"
+              value={formData.rustfs_instance_id}
+              onChange={(e) => onChange({ rustfs_instance_id: e.target.value })}
+            >
+              <option value="">Select source instance</option>
+              {instances?.map((instance) => (
+                <option key={instance.id} value={instance.id}>
+                  {instance.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {/* Backup Type Selection */}
+          <div>
+            <label className="input-label">Source Bucket</label>
+            <input
+              type="text"
+              required
+              placeholder="my-bucket"
+              className="input-field"
+              value={formData.source_bucket}
+              onChange={(e) => onChange({ source_bucket: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              The bucket name from your object storage instance to backup
+            </p>
+          </div>
+        </>
+      )}
+
+      {formData.source_type === 'postgres' && (
+        <div>
+          <label className="input-label">Source PostgreSQL Instance</label>
+          <select
+            required
+            className="input-field"
+            value={formData.postgres_instance_id}
+            onChange={(e) => onChange({ postgres_instance_id: e.target.value })}
+          >
+            <option value="">Select PostgreSQL instance</option>
+            {postgresInstances?.map((instance) => (
+              <option key={instance.id} value={instance.id}>
+                {instance.name} ({instance.database})
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">
+            Database will be backed up using pg_dump
+          </p>
+        </div>
+      )}
+
+      {formData.source_type === 'vps' && (
+        <>
+          <div>
+            <label className="input-label">Source VPS Instance</label>
+            <select
+              required
+              className="input-field"
+              value={formData.vps_instance_id}
+              onChange={(e) => onChange({ vps_instance_id: e.target.value })}
+            >
+              <option value="">Select VPS instance</option>
+              {vpsInstances?.map((instance) => (
+                <option key={instance.id} value={instance.id}>
+                  {instance.name} ({instance.host})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="input-label">Source Path</label>
+            <input
+              type="text"
+              required
+              placeholder="/var/www/html"
+              className="input-field"
+              value={formData.source_path}
+              onChange={(e) => onChange({ source_path: e.target.value })}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              File or folder path on the VPS to backup
+            </p>
+          </div>
+        </>
+      )}
+
+      {/* Backup Destination Type Selection */}
       <div className="border-t border-gray-200 pt-4">
         <label className="input-label">Backup Destination Type</label>
         <div className="grid grid-cols-2 gap-3">
@@ -93,7 +213,7 @@ export default function BackupJobForm({
           >
             <FolderIcon className={`h-6 w-6 mb-2 ${formData.backup_type === 'bucket' ? 'text-indigo-600' : 'text-gray-400'}`} />
             <div className="font-semibold text-sm">Object Storage</div>
-            <div className="text-xs text-gray-500 mt-1">Direct copy to another bucket</div>
+            <div className="text-xs text-gray-500 mt-1">Store in S3-compatible bucket</div>
           </button>
         </div>
       </div>
@@ -105,19 +225,19 @@ export default function BackupJobForm({
           <input
             type="text"
             required
-            placeholder="/app/backups/my-bucket"
+            placeholder="/app/backups"
             className="input-field"
             value={formData.destination_path}
             onChange={(e) => onChange({ destination_path: e.target.value })}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Server path where backup archives (.tar.gz) will be stored
+            Server path where backup archives will be stored
           </p>
         </div>
       ) : (
         <>
           <div>
-            <label className="input-label">Destination RustFS Instance</label>
+            <label className="input-label">Destination Object Storage Instance</label>
             <select
               required
               className="input-field"
@@ -146,87 +266,68 @@ export default function BackupJobForm({
               onChange={(e) => onChange({ destination_bucket: e.target.value })}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Bucket where backup objects will be copied (will be created if it doesn't exist)
+              Bucket where backups will be stored (created if doesn't exist)
             </p>
           </div>
 
-          {/* Backup Format Selection */}
-          <div className="border-t border-gray-200 pt-4">
-            <label className="input-label">Backup Format</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => onChange({ compression_enabled: true })}
-                className={`p-4 border-2 rounded-lg text-left transition-all ${
-                  formData.compression_enabled
-                    ? 'border-indigo-600 bg-indigo-50'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <ArrowDownTrayIcon className={`h-6 w-6 mb-2 ${formData.compression_enabled ? 'text-indigo-600' : 'text-gray-400'}`} />
-                <div className="font-semibold text-sm">Compressed Archive</div>
-                <div className="text-xs text-gray-500 mt-1">Single .tar.gz file</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => onChange({ compression_enabled: false })}
-                className={`p-4 border-2 rounded-lg text-left transition-all ${
-                  !formData.compression_enabled
-                    ? 'border-indigo-600 bg-indigo-50'
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}
-              >
-                <FolderIcon className={`h-6 w-6 mb-2 ${!formData.compression_enabled ? 'text-indigo-600' : 'text-gray-400'}`} />
-                <div className="font-semibold text-sm">Direct Copy</div>
-                <div className="text-xs text-gray-500 mt-1">Individual objects</div>
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              {formData.compression_enabled 
-                ? 'All objects will be archived into a single compressed file'
-                : 'Objects will be copied individually to the destination bucket'}
-            </p>
-          </div>
+          {/* Only show compression options for object storage source */}
+          {formData.source_type === 'object_storage' && (
+            <>
+              {/* Backup Format Selection */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="input-label">Backup Format</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onChange({ compression_enabled: true })}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      formData.compression_enabled
+                        ? 'border-indigo-600 bg-indigo-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <ArrowDownTrayIcon className={`h-6 w-6 mb-2 ${formData.compression_enabled ? 'text-indigo-600' : 'text-gray-400'}`} />
+                    <div className="font-semibold text-sm">Compressed Archive</div>
+                    <div className="text-xs text-gray-500 mt-1">Single .tar.gz file</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange({ compression_enabled: false })}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      !formData.compression_enabled
+                        ? 'border-indigo-600 bg-indigo-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <FolderIcon className={`h-6 w-6 mb-2 ${!formData.compression_enabled ? 'text-indigo-600' : 'text-gray-400'}`} />
+                    <div className="font-semibold text-sm">Direct Copy</div>
+                    <div className="text-xs text-gray-500 mt-1">Individual objects</div>
+                  </button>
+                </div>
+              </div>
 
-          {/* Destination Path for Bucket Backups */}
-          <div>
-            <label className="input-label">
-              Destination Path (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder={formData.compression_enabled ? "backups/production" : "restored"}
-              className="input-field"
-              value={formData.backup_type === 'bucket' ? (formData.destination_path === '/app/backups' ? '' : formData.destination_path) : formData.destination_path}
-              onChange={(e) => onChange({ destination_path: e.target.value })}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              {formData.compression_enabled
-                ? 'Path prefix where the archive will be stored (e.g., backups/production/20240119_120000/bucket.tar.gz)'
-                : 'Optional folder path in destination bucket (e.g., "restored" → restored/file.txt). Leave empty to copy to bucket root.'}
-            </p>
-          </div>
-
-          {/* Compression Type for Compressed Archives */}
-          {formData.compression_enabled && (
-            <div>
-              <label className="input-label">Compression Algorithm</label>
-              <select
-                className="input-field"
-                value={formData.compression_type}
-                onChange={(e) => onChange({ compression_type: e.target.value })}
-              >
-                <option value="gzip">Gzip (Recommended)</option>
-                <option value="none">None (Tar only)</option>
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Gzip provides good compression with fast performance
-              </p>
-            </div>
+              {/* Destination Path */}
+              <div>
+                <label className="input-label">Destination Path (Optional)</label>
+                <input
+                  type="text"
+                  placeholder={formData.compression_enabled ? "backups/production" : "restored"}
+                  className="input-field"
+                  value={formData.destination_path === '/app/backups' ? '' : formData.destination_path}
+                  onChange={(e) => onChange({ destination_path: e.target.value || '/app/backups' })}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {formData.compression_enabled
+                    ? 'Path prefix for the archive (e.g., backups/production)'
+                    : 'Optional folder path in destination bucket'}
+                </p>
+              </div>
+            </>
           )}
         </>
       )}
 
+      {/* Schedule */}
       <div>
         <label className="input-label">Schedule (Cron Expression)</label>
         <input
@@ -246,6 +347,7 @@ export default function BackupJobForm({
         </div>
       </div>
 
+      {/* Retention and Compression */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="input-label">Retention Days</label>
@@ -273,6 +375,7 @@ export default function BackupJobForm({
         )}
       </div>
 
+      {/* Enable Checkbox */}
       <div className="flex items-center">
         <input
           type="checkbox"
@@ -286,6 +389,7 @@ export default function BackupJobForm({
         </label>
       </div>
 
+      {/* Form Actions */}
       <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
         <button
           type="button"

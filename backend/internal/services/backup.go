@@ -135,13 +135,26 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 	// IMPORTANT: Reload the RustFS instance to ensure we get the correct SSL value
 	jobWithInstance, err := s.repo.FindJobByID(job.ID)
 	if err != nil {
-		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to reload RustFS instance: %v", err), 0, 0, "")
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to reload job: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Check source type and get appropriate client
+	if jobWithInstance.SourceType != "object_storage" {
+		s.updateBackupRun(run, "failed", "Only object_storage backups are currently supported", 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	if jobWithInstance.RustFSInstance == nil {
+		s.updateBackupRun(run, "failed", "RustFS instance not found", 0, 0, "")
 		s.updateBackupJobStatus(job.ID, "failed")
 		return
 	}
 
 	// Get RustFS client for source
-	sourceClient, err := s.rustfsService.GetClient(&jobWithInstance.RustFSInstance)
+	sourceClient, err := s.rustfsService.GetClient(jobWithInstance.RustFSInstance)
 	if err != nil {
 		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to get source RustFS client: %v", err), 0, 0, "")
 		s.updateBackupJobStatus(job.ID, "failed")
