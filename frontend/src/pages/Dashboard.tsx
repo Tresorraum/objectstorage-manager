@@ -243,7 +243,14 @@ export default function Dashboard() {
               <SparklesIcon className="h-6 w-6" />
               <span className="text-sm font-semibold uppercase tracking-wide opacity-90">Welcome Back</span>
             </div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="
+              text-xl sm:text-2xl md:text-3xl
+              font-bold
+              mb-1 sm:mb-2
+              break-words
+              text-center sm:text-left
+            ">
+
               {user?.username ? `Hello, ${user.username}!` : 'Dashboard'}
             </h1>
             <p className="text-indigo-100">
