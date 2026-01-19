@@ -18,6 +18,8 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 )
 
 type PostgresService struct {
@@ -294,10 +296,6 @@ func (s *PostgresService) CreateBackupToVPS(postgresInstance *models.PostgresIns
 		return "", err
 	}
 
-	// Get VPS service to upload file
-	// We need to decrypt VPS credentials and establish SSH connection
-	// For now, we'll save the dump to a temp file and use SCP
-
 	// Create temp file
 	tempFile := filepath.Join(os.TempDir(), filename)
 	if err := os.WriteFile(tempFile, sqlDump, 0600); err != nil {
@@ -308,7 +306,87 @@ func (s *PostgresService) CreateBackupToVPS(postgresInstance *models.PostgresIns
 	// Build destination path on VPS
 	destPath := filepath.Join(vpsInstance.BackupPath, filename)
 
-	// Use SCP to upload (we'll need to implement this in VPS service)
-	// For now, return the path where it should be uploaded
-	return destPath, fmt.Errorf("VPS upload not yet implemented - backup created at: %s", tempFile)
+	// Get VPS credentials
+	var authMethods []ssh.AuthMethod
+
+	if vpsInstance.AuthType == "ssh_key" {
+		// Decrypt SSH key
+		sshKey, err := s.decrypt(vpsInstance.SSHKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to decrypt SSH key: %w", err)
+		}
+
+		// Parse private key
+		signer, err := ssh.ParsePrivateKey([]byte(sshKey))
+		if err != nil {
+			return "", fmt.Errorf("failed to parse SSH key: %w", err)
+		}
+		authMethods = append(authMethods, ssh.PublicKeys(signer))
+	} else {
+		// Decrypt password
+		password, err := s.decrypt(vpsInstance.Password)
+		if err != nil {
+			return "", fmt.Errorf("failed to decrypt password: %w", err)
+		}
+
+		// Use both password and keyboard-interactive for compatibility
+		authMethods = append(authMethods, ssh.Password(password))
+		authMethods = append(authMethods, ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+			answers := make([]string, len(questions))
+			for i := range questions {
+				answers[i] = password
+			}
+			return answers, nil
+		}))
+	}
+
+	// SSH client configuration
+	config := &ssh.ClientConfig{
+		User:            vpsInstance.Username,
+		Auth:            authMethods,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Implement proper host key verification
+		Timeout:         30 * time.Second,
+	}
+
+	// Connect to VPS
+	addr := fmt.Sprintf("%s:%d", vpsInstance.Host, vpsInstance.Port)
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to VPS: %w", err)
+	}
+	defer client.Close()
+
+	// Create SFTP client
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return "", fmt.Errorf("failed to create SFTP client: %w", err)
+	}
+	defer sftpClient.Close()
+
+	// Ensure backup directory exists on VPS
+	if err := sftpClient.MkdirAll(vpsInstance.BackupPath); err != nil {
+		return "", fmt.Errorf("failed to create backup directory on VPS: %w", err)
+	}
+
+	// Open source file
+	srcFile, err := os.Open(tempFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	// Create destination file on VPS
+	dstFile, err := sftpClient.Create(destPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create destination file on VPS: %w", err)
+	}
+	defer dstFile.Close()
+
+	// Copy file
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to upload file to VPS: %w", err)
+	}
+
+	return destPath, nil
 }
