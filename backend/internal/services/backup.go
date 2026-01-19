@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -119,11 +120,14 @@ func (s *BackupService) RunBackupJob(jobID uint) (*models.BackupRun, error) {
 func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupRun) {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("Panic in executeBackup: %v", r)
+			log.Printf("Panic in executeBackup for job %d: %v", job.ID, r)
 			s.updateBackupRun(run, "failed", fmt.Sprintf("Panic: %v", r), 0, 0, "")
 			s.updateBackupJobStatus(job.ID, "failed")
 		}
 	}()
+
+	log.Printf("Starting backup job %d (type=%s, compression_enabled=%v, source=%s, dest_bucket=%s)", 
+		job.ID, job.BackupType, job.CompressionEnabled, job.SourceBucket, job.DestinationBucket)
 
 	// IMPORTANT: Reload the RustFS instance to ensure we get the correct SSL value
 	jobWithInstance, err := s.repo.FindJobByID(job.ID)
@@ -302,14 +306,69 @@ func (s *BackupService) executeBackupToBucket(job *models.BackupJob, run *models
 		}
 	}
 
-	// List objects from source bucket
+	// Determine backup path prefix
+	timestamp := time.Now().Format("20060102_150405")
+	var pathPrefix string
+	if job.DestinationPath != "" && job.DestinationPath != "/app/backups" {
+		// User specified a custom path (sanitize it)
+		// Remove leading/trailing slashes for S3 compatibility
+		cleanPath := strings.Trim(job.DestinationPath, "/")
+		if cleanPath != "" {
+			pathPrefix = fmt.Sprintf("%s/%s", cleanPath, timestamp)
+		} else {
+			pathPrefix = timestamp
+		}
+	} else {
+		// Default: use timestamp only
+		pathPrefix = timestamp
+	}
+
+	log.Printf("Backup job %d: Using path prefix '%s' for bucket backup", job.ID, pathPrefix)
+
+	// Route to appropriate backup method based on compression setting
+	if job.CompressionEnabled {
+		log.Printf("Backup job %d: Executing COMPRESSED bucket backup", job.ID)
+		s.executeCompressedBucketBackup(job, run, sourceClient, destClient, pathPrefix)
+	} else {
+		log.Printf("Backup job %d: Executing UNCOMPRESSED bucket backup", job.ID)
+		s.executeUncompressedBucketBackup(job, run, sourceClient, destClient, pathPrefix)
+	}
+}
+
+// executeCompressedBucketBackup creates a tar.gz archive and uploads it to the destination bucket
+func (s *BackupService) executeCompressedBucketBackup(job *models.BackupJob, run *models.BackupRun, sourceClient, destClient *minio.Client, pathPrefix string) {
+	ctx := context.Background()
+
+	// Create temporary file for the archive
+	tempDir := "/tmp"
+	archiveName := fmt.Sprintf("%s_%s.tar.gz", job.SourceBucket, time.Now().Format("20060102_150405"))
+	tempArchivePath := filepath.Join(tempDir, archiveName)
+
+	archiveFile, err := os.Create(tempArchivePath)
+	if err != nil {
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to create temporary archive: %v", err), 0, 0, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Create gzip writer
+	var writer io.Writer = archiveFile
+	var gzWriter *gzip.Writer
+	if job.CompressionType == "gzip" {
+		gzWriter = gzip.NewWriter(archiveFile)
+		writer = gzWriter
+	}
+
+	// Create tar writer
+	tarWriter := tar.NewWriter(writer)
+
+	// List and archive objects from source bucket
 	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
 
 	var filesCount int64
 	var bytesCount int64
 	var errors []string
 
-	// Copy each object to destination
 	for object := range objectCh {
 		if object.Err != nil {
 			errors = append(errors, fmt.Sprintf("Failed to list object: %v", object.Err))
@@ -323,9 +382,142 @@ func (s *BackupService) executeBackupToBucket(job *models.BackupJob, run *models
 			continue
 		}
 
-		// Copy to destination with timestamp prefix to avoid overwriting
-		timestamp := time.Now().Format("20060102_150405")
-		destKey := fmt.Sprintf("%s/%s", timestamp, object.Key)
+		// Add to tar archive
+		header := &tar.Header{
+			Name:    object.Key,
+			Size:    object.Size,
+			Mode:    0644,
+			ModTime: object.LastModified,
+		}
+
+		if err := tarWriter.WriteHeader(header); err != nil {
+			srcObject.Close()
+			errors = append(errors, fmt.Sprintf("Failed to write tar header for %s: %v", object.Key, err))
+			continue
+		}
+
+		written, err := io.Copy(tarWriter, srcObject)
+		srcObject.Close()
+
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to write object %s to archive: %v", object.Key, err))
+			continue
+		}
+
+		filesCount++
+		bytesCount += written
+	}
+
+	// Close writers to flush data before uploading
+	if err := tarWriter.Close(); err != nil {
+		archiveFile.Close()
+		os.Remove(tempArchivePath)
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to close tar writer: %v", err), filesCount, bytesCount, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	if gzWriter != nil {
+		if err := gzWriter.Close(); err != nil {
+			archiveFile.Close()
+			os.Remove(tempArchivePath)
+			s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to close gzip writer: %v", err), filesCount, bytesCount, "")
+			s.updateBackupJobStatus(job.ID, "failed")
+			return
+		}
+	}
+
+	if err := archiveFile.Close(); err != nil {
+		os.Remove(tempArchivePath)
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to close archive file: %v", err), filesCount, bytesCount, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Now reopen the file for uploading
+	uploadFile, err := os.Open(tempArchivePath)
+	if err != nil {
+		os.Remove(tempArchivePath)
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to open archive for upload: %v", err), filesCount, bytesCount, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+	defer func() {
+		uploadFile.Close()
+		os.Remove(tempArchivePath) // Clean up temp file
+	}()
+
+	fileInfo, err := uploadFile.Stat()
+	if err != nil {
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to stat archive: %v", err), filesCount, bytesCount, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	// Destination key with path prefix
+	destKey := fmt.Sprintf("%s/%s", pathPrefix, archiveName)
+
+	_, err = destClient.PutObject(ctx, job.DestinationBucket, destKey, uploadFile, fileInfo.Size(), minio.PutObjectOptions{
+		ContentType: "application/gzip",
+	})
+
+	if err != nil {
+		log.Printf("Failed to upload archive to bucket=%s, key=%s, size=%d: %v", job.DestinationBucket, destKey, fileInfo.Size(), err)
+		s.updateBackupRun(run, "failed", fmt.Sprintf("Failed to upload archive: %v", err), filesCount, bytesCount, "")
+		s.updateBackupJobStatus(job.ID, "failed")
+		return
+	}
+
+	log.Printf("Successfully uploaded archive to %s/%s (%d files, %d bytes)", job.DestinationBucket, destKey, filesCount, fileInfo.Size())
+
+	// Update backup job status
+	now := time.Now()
+	job.LastRun = &now
+	if len(errors) > 0 {
+		job.Status = "failed"
+		errorMsg := fmt.Sprintf("Completed with %d errors: %s", len(errors), errors[0])
+		if len(errors) > 1 {
+			errorMsg += fmt.Sprintf(" (and %d more)", len(errors)-1)
+		}
+		s.updateBackupRun(run, "failed", errorMsg, filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, destKey))
+	} else {
+		job.Status = "completed"
+		if job.Schedule != "" {
+			nextRun, _ := s.calculateNextRun(job.Schedule)
+			job.NextRun = &nextRun
+		}
+		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, destKey))
+	}
+	s.repo.UpdateJob(job)
+}
+
+// executeUncompressedBucketBackup copies objects directly to the destination bucket
+func (s *BackupService) executeUncompressedBucketBackup(job *models.BackupJob, run *models.BackupRun, sourceClient, destClient *minio.Client, pathPrefix string) {
+	ctx := context.Background()
+
+	// List objects from source bucket
+	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
+
+	var filesCount int64
+	var bytesCount int64
+	var errors []string
+
+	// Copy each object to destination with path prefix
+	for object := range objectCh {
+		if object.Err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to list object: %v", object.Err))
+			continue
+		}
+
+		// Get object from source
+		srcObject, err := sourceClient.GetObject(ctx, job.SourceBucket, object.Key, minio.GetObjectOptions{})
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("Failed to get object %s: %v", object.Key, err))
+			continue
+		}
+
+		// Destination key with path prefix
+		destKey := fmt.Sprintf("%s/%s", pathPrefix, object.Key)
 
 		_, err = destClient.PutObject(ctx, job.DestinationBucket, destKey, srcObject, object.Size, minio.PutObjectOptions{
 			ContentType: "application/octet-stream",
@@ -350,14 +542,14 @@ func (s *BackupService) executeBackupToBucket(job *models.BackupJob, run *models
 		if len(errors) > 1 {
 			errorMsg += fmt.Sprintf(" (and %d more)", len(errors)-1)
 		}
-		s.updateBackupRun(run, "failed", errorMsg, filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, time.Now().Format("20060102_150405")))
+		s.updateBackupRun(run, "failed", errorMsg, filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, pathPrefix))
 	} else {
 		job.Status = "completed"
 		if job.Schedule != "" {
 			nextRun, _ := s.calculateNextRun(job.Schedule)
 			job.NextRun = &nextRun
 		}
-		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, time.Now().Format("20060102_150405")))
+		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, pathPrefix))
 	}
 	s.repo.UpdateJob(job)
 }

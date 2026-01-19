@@ -35,6 +35,7 @@ interface BackupJob {
   enabled: boolean;
   retention_days: number;
   compression_type: string;
+  compression_enabled: boolean;
   last_run?: string;
   next_run?: string;
   status: string;
@@ -90,6 +91,7 @@ export default function Backups() {
     enabled: true,
     retention_days: 30,
     compression_type: 'gzip',
+    compression_enabled: true, // For bucket backups: true = tar.gz, false = direct copy
   });
 
   const queryClient = useQueryClient();
@@ -154,6 +156,7 @@ export default function Backups() {
       enabled: true,
       retention_days: 30,
       compression_type: 'gzip',
+      compression_enabled: true,
     });
   };
 
@@ -910,6 +913,81 @@ export default function Backups() {
                   Bucket where backup objects will be copied (will be created if it doesn't exist)
                 </p>
               </div>
+
+              {/* Backup Format Selection */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="input-label">Backup Format</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, compression_enabled: true })}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      formData.compression_enabled
+                        ? 'border-indigo-600 bg-indigo-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <ArrowDownTrayIcon className={`h-6 w-6 mb-2 ${formData.compression_enabled ? 'text-indigo-600' : 'text-gray-400'}`} />
+                    <div className="font-semibold text-sm">Compressed Archive</div>
+                    <div className="text-xs text-gray-500 mt-1">Single .tar.gz file</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, compression_enabled: false })}
+                    className={`p-4 border-2 rounded-lg text-left transition-all ${
+                      !formData.compression_enabled
+                        ? 'border-indigo-600 bg-indigo-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <FolderIcon className={`h-6 w-6 mb-2 ${!formData.compression_enabled ? 'text-indigo-600' : 'text-gray-400'}`} />
+                    <div className="font-semibold text-sm">Direct Copy</div>
+                    <div className="text-xs text-gray-500 mt-1">Individual objects</div>
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  {formData.compression_enabled 
+                    ? 'All objects will be archived into a single compressed file'
+                    : 'Objects will be copied individually to the destination bucket'}
+                </p>
+              </div>
+
+              {/* Destination Path for Bucket Backups */}
+              <div>
+                <label className="input-label">
+                  Destination Path (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="backups/production"
+                  className="input-field"
+                  value={formData.backup_type === 'bucket' ? (formData.destination_path === '/app/backups' ? '' : formData.destination_path) : formData.destination_path}
+                  onChange={(e) => setFormData({ ...formData, destination_path: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {formData.compression_enabled
+                    ? 'Path prefix where the archive will be stored (e.g., backups/production/20240119_120000/bucket.tar.gz)'
+                    : 'Path prefix for copied objects (e.g., backups/production/20240119_120000/file.txt)'}
+                </p>
+              </div>
+
+              {/* Compression Type for Compressed Archives */}
+              {formData.compression_enabled && (
+                <div>
+                  <label className="input-label">Compression Algorithm</label>
+                  <select
+                    className="input-field"
+                    value={formData.compression_type}
+                    onChange={(e) => setFormData({ ...formData, compression_type: e.target.value })}
+                  >
+                    <option value="gzip">Gzip (Recommended)</option>
+                    <option value="none">None (Tar only)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Gzip provides good compression with fast performance
+                  </p>
+                </div>
+              )}
             </>
           )}
 
