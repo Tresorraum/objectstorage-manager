@@ -13,6 +13,7 @@ type CreateBackupJobRequest struct {
 	Enabled               bool   `json:"enabled"`
 	RetentionDays         int    `json:"retention_days"`
 	CompressionType       string `json:"compression_type"`
+	CompressionEnabled    bool   `json:"compression_enabled"` // For bucket backups: true = tar.gz, false = direct copy
 }
 
 type UpdateBackupJobRequest struct {
@@ -27,6 +28,7 @@ type UpdateBackupJobRequest struct {
 	Enabled               bool   `json:"enabled"`
 	RetentionDays         int    `json:"retention_days"`
 	CompressionType       string `json:"compression_type"`
+	CompressionEnabled    bool   `json:"compression_enabled"` // For bucket backups: true = tar.gz, false = direct copy
 }
 
 type RestoreBackupRequest struct {

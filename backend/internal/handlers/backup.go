@@ -107,6 +107,7 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 		Enabled:               req.Enabled,
 		RetentionDays:         req.RetentionDays,
 		CompressionType:       req.CompressionType,
+		CompressionEnabled:    req.CompressionEnabled,
 	}
 
 	if err := h.backupService.CreateBackupJob(job); err != nil {
@@ -168,6 +169,7 @@ func (h *BackupHandler) UpdateJob(c *gin.Context) {
 	job.Enabled = req.Enabled
 	job.RetentionDays = req.RetentionDays
 	job.CompressionType = req.CompressionType
+	job.CompressionEnabled = req.CompressionEnabled
 
 	if err := h.backupService.UpdateBackupJob(job); err != nil {
 		c.JSON(http.StatusBadRequest, dto.NewErrorResponse(dto.ErrInternalServer))
