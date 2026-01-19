@@ -1,7 +1,7 @@
 import React from 'react';
 import { DocumentTextIcon } from '@heroicons/react/24/outline';
 import { BackupJob } from './types';
-import { formatBytes, getStatusColor } from './utils';
+import { formatBytes, getStatusColor, getSourceInstanceName, getSourceDetails, getSourceTypeLabel } from './utils';
 
 interface BackupHistoryModalProps {
   job: BackupJob;
@@ -15,12 +15,16 @@ export default function BackupHistoryModal({ job, onClose }: BackupHistoryModalP
       <div className="bg-gray-50 rounded-lg p-4 space-y-2">
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-gray-500">Instance:</span>
-            <span className="ml-2 font-medium text-gray-900">{job.rustfs_instance.name}</span>
+            <span className="text-gray-500">Source Type:</span>
+            <span className="ml-2 font-medium text-gray-900">{getSourceTypeLabel(job.source_type)}</span>
           </div>
           <div>
-            <span className="text-gray-500">Bucket:</span>
-            <span className="ml-2 font-medium text-gray-900">{job.source_bucket}</span>
+            <span className="text-gray-500">Instance:</span>
+            <span className="ml-2 font-medium text-gray-900">{getSourceInstanceName(job)}</span>
+          </div>
+          <div className="col-span-2">
+            <span className="text-gray-500">Source:</span>
+            <span className="ml-2 font-medium text-gray-900">{getSourceDetails(job)}</span>
           </div>
           <div className="col-span-2">
             <span className="text-gray-500">Storage Path:</span>

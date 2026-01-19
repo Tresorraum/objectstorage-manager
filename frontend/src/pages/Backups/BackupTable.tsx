@@ -1,7 +1,7 @@
 import React from 'react';
 import { PlayIcon, TrashIcon, DocumentTextIcon, ServerIcon } from '@heroicons/react/24/outline';
 import { BackupJob } from './types';
-import { getStatusColor, getTypeColor } from './utils';
+import { getStatusColor, getTypeColor, getSourceInstanceName, getSourceDetails, getSourceTypeLabel, getSourceTypeColor } from './utils';
 
 interface BackupTableProps {
   jobs: BackupJob[];
@@ -108,8 +108,11 @@ export default function BackupTable({
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm text-gray-900">{job.rustfs_instance.name}</div>
-                  <div className="text-xs text-gray-500">{job.source_bucket}</div>
+                  <div className="text-sm text-gray-900">{getSourceInstanceName(job)}</div>
+                  <div className="text-xs text-gray-500">{getSourceDetails(job)}</div>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1 ${getSourceTypeColor(job.source_type)}`}>
+                    {getSourceTypeLabel(job.source_type)}
+                  </span>
                 </td>
                 <td className="px-6 py-4">
                   {job.backup_type === 'server' ? (

@@ -83,13 +83,17 @@ type BackupJob struct {
 	ID                    uint           `json:"id" gorm:"primarykey"`
 	UserID                uint           `json:"user_id" gorm:"not null"`
 	Name                  string         `json:"name" gorm:"not null"`
-	RustFSInstanceID      uint           `json:"rustfs_instance_id" gorm:"not null"`
-	SourceBucket          string         `json:"source_bucket" gorm:"not null"`
-	BackupType            string         `json:"backup_type" gorm:"default:server"` // "server" or "bucket"
-	DestinationPath       string         `json:"destination_path"`                  // For server backups and bucket path prefix
-	DestinationInstanceID *uint          `json:"destination_instance_id"`           // For bucket backups
-	DestinationBucket     string         `json:"destination_bucket"`                // For bucket backups
-	Schedule              string         `json:"schedule"`                          // Cron expression
+	SourceType            string         `json:"source_type" gorm:"default:object_storage"` // "object_storage", "postgres", "vps"
+	RustFSInstanceID      *uint          `json:"rustfs_instance_id"`                        // For object storage source
+	PostgresInstanceID    *uint          `json:"postgres_instance_id"`                      // For postgres source
+	VPSInstanceID         *uint          `json:"vps_instance_id"`                           // For vps source
+	SourceBucket          string         `json:"source_bucket"`                             // For object storage
+	SourcePath            string         `json:"source_path"`                               // For VPS file/folder backups
+	BackupType            string         `json:"backup_type" gorm:"default:server"`         // "server" or "bucket"
+	DestinationPath       string         `json:"destination_path"`                          // For server backups and bucket path prefix
+	DestinationInstanceID *uint          `json:"destination_instance_id"`                   // For bucket backups
+	DestinationBucket     string         `json:"destination_bucket"`                        // For bucket backups
+	Schedule              string         `json:"schedule"`                                  // Cron expression
 	Enabled               bool           `json:"enabled" gorm:"default:true"`
 	RetentionDays         int            `json:"retention_days" gorm:"default:30"`
 	CompressionType       string         `json:"compression_type" gorm:"default:gzip"` // "gzip", "none"
@@ -102,9 +106,11 @@ type BackupJob struct {
 	DeletedAt             gorm.DeletedAt `json:"-" gorm:"index"`
 
 	// Relationships
-	RustFSInstance      RustFSInstance  `json:"rustfs_instance,omitempty"`
-	DestinationInstance *RustFSInstance `json:"destination_instance,omitempty" gorm:"foreignKey:DestinationInstanceID"`
-	BackupRuns          []BackupRun     `json:"backup_runs,omitempty"`
+	RustFSInstance      *RustFSInstance   `json:"rustfs_instance,omitempty" gorm:"foreignKey:RustFSInstanceID"`
+	PostgresInstance    *PostgresInstance `json:"postgres_instance,omitempty" gorm:"foreignKey:PostgresInstanceID"`
+	VPSInstance         *VPSInstance      `json:"vps_instance,omitempty" gorm:"foreignKey:VPSInstanceID"`
+	DestinationInstance *RustFSInstance   `json:"destination_instance,omitempty" gorm:"foreignKey:DestinationInstanceID"`
+	BackupRuns          []BackupRun       `json:"backup_runs,omitempty"`
 
 	// Computed fields
 	LastErrorMsg string `json:"last_error_msg" gorm:"-"`

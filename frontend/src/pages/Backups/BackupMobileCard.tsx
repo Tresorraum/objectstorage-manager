@@ -1,7 +1,7 @@
 import React from 'react';
 import { PlayIcon, TrashIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { BackupJob } from './types';
-import { getStatusColor, getTypeColor } from './utils';
+import { getStatusColor, getTypeColor, getSourceInstanceName, getSourceDetails, getSourceTypeLabel, getSourceTypeColor } from './utils';
 
 interface BackupMobileCardProps {
   job: BackupJob;
@@ -57,7 +57,13 @@ export default function BackupMobileCard({
       <div className="ml-7 space-y-2 text-xs">
         <div className="flex items-center text-gray-600">
           <span className="font-medium w-20">Source:</span>
-          <span className="text-gray-900">{job.rustfs_instance.name} / {job.source_bucket}</span>
+          <span className="text-gray-900">{getSourceInstanceName(job)} / {getSourceDetails(job)}</span>
+        </div>
+        <div className="flex items-center text-gray-600">
+          <span className="font-medium w-20">Type:</span>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getSourceTypeColor(job.source_type)}`}>
+            {getSourceTypeLabel(job.source_type)}
+          </span>
         </div>
         <div className="flex items-center text-gray-600">
           <span className="font-medium w-20">Schedule:</span>

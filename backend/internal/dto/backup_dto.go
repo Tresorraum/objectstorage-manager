@@ -3,8 +3,12 @@ package dto
 // Request DTOs
 type CreateBackupJobRequest struct {
 	Name                  string `json:"name" binding:"required"`
-	RustFSInstanceID      uint   `json:"rustfs_instance_id" binding:"required"`
-	SourceBucket          string `json:"source_bucket" binding:"required"`
+	SourceType            string `json:"source_type" binding:"required"` // "object_storage", "postgres", "vps"
+	RustFSInstanceID      *uint  `json:"rustfs_instance_id"`
+	PostgresInstanceID    *uint  `json:"postgres_instance_id"`
+	VPSInstanceID         *uint  `json:"vps_instance_id"`
+	SourceBucket          string `json:"source_bucket"` // For object storage
+	SourcePath            string `json:"source_path"`   // For VPS file/folder backups
 	BackupType            string `json:"backup_type" binding:"required"`
 	DestinationPath       string `json:"destination_path"`
 	DestinationInstanceID *uint  `json:"destination_instance_id"`
@@ -18,8 +22,12 @@ type CreateBackupJobRequest struct {
 
 type UpdateBackupJobRequest struct {
 	Name                  string `json:"name" binding:"required"`
-	RustFSInstanceID      uint   `json:"rustfs_instance_id" binding:"required"`
-	SourceBucket          string `json:"source_bucket" binding:"required"`
+	SourceType            string `json:"source_type" binding:"required"` // "object_storage", "postgres", "vps"
+	RustFSInstanceID      *uint  `json:"rustfs_instance_id"`
+	PostgresInstanceID    *uint  `json:"postgres_instance_id"`
+	VPSInstanceID         *uint  `json:"vps_instance_id"`
+	SourceBucket          string `json:"source_bucket"` // For object storage
+	SourcePath            string `json:"source_path"`   // For VPS file/folder backups
 	BackupType            string `json:"backup_type" binding:"required"`
 	DestinationPath       string `json:"destination_path"`
 	DestinationInstanceID *uint  `json:"destination_instance_id"`
