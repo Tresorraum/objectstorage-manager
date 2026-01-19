@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/minio/minio-go/v7"
 	"rustfs-manager/internal/models"
 	"rustfs-manager/internal/repository"
+
+	"github.com/minio/minio-go/v7"
 )
 
 type BackupService struct {
@@ -56,12 +57,12 @@ func (s *BackupService) ListBackupJobs() ([]models.BackupJob, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Populate computed fields
 	for i := range jobs {
 		jobs[i].LastErrorMsg = jobs[i].GetLastErrorMsg()
 	}
-	
+
 	return jobs, nil
 }
 
@@ -126,7 +127,7 @@ func (s *BackupService) executeBackup(job *models.BackupJob, run *models.BackupR
 		}
 	}()
 
-	log.Printf("Starting backup job %d (type=%s, compression_enabled=%v, source=%s, dest_bucket=%s)", 
+	log.Printf("Starting backup job %d (type=%s, compression_enabled=%v, source=%s, dest_bucket=%s)",
 		job.ID, job.BackupType, job.CompressionEnabled, job.SourceBucket, job.DestinationBucket)
 
 	// IMPORTANT: Reload the RustFS instance to ensure we get the correct SSL value
@@ -309,21 +310,30 @@ func (s *BackupService) executeBackupToBucket(job *models.BackupJob, run *models
 	// Determine backup path prefix
 	timestamp := time.Now().Format("20060102_150405")
 	var pathPrefix string
-	if job.DestinationPath != "" && job.DestinationPath != "/app/backups" {
-		// User specified a custom path (sanitize it)
-		// Remove leading/trailing slashes for S3 compatibility
-		cleanPath := strings.Trim(job.DestinationPath, "/")
-		if cleanPath != "" {
-			pathPrefix = fmt.Sprintf("%s/%s", cleanPath, timestamp)
+
+	if job.CompressionEnabled {
+		// For compressed backups: always use timestamp folder
+		if job.DestinationPath != "" && job.DestinationPath != "/app/backups" {
+			cleanPath := strings.Trim(job.DestinationPath, "/")
+			if cleanPath != "" {
+				pathPrefix = fmt.Sprintf("%s/%s", cleanPath, timestamp)
+			} else {
+				pathPrefix = timestamp
+			}
 		} else {
 			pathPrefix = timestamp
 		}
 	} else {
-		// Default: use timestamp only
-		pathPrefix = timestamp
+		// For uncompressed backups: use custom path or root (no timestamp)
+		if job.DestinationPath != "" && job.DestinationPath != "/app/backups" {
+			cleanPath := strings.Trim(job.DestinationPath, "/")
+			pathPrefix = cleanPath
+		} else {
+			pathPrefix = "" // Root of bucket
+		}
 	}
 
-	log.Printf("Backup job %d: Using path prefix '%s' for bucket backup", job.ID, pathPrefix)
+	log.Printf("Backup job %d: Using path prefix '%s' for bucket backup (compressed=%v)", job.ID, pathPrefix, job.CompressionEnabled)
 
 	// Route to appropriate backup method based on compression setting
 	if job.CompressionEnabled {
@@ -516,8 +526,13 @@ func (s *BackupService) executeUncompressedBucketBackup(job *models.BackupJob, r
 			continue
 		}
 
-		// Destination key with path prefix
-		destKey := fmt.Sprintf("%s/%s", pathPrefix, object.Key)
+		// Destination key with path prefix (if pathPrefix is empty, use root)
+		var destKey string
+		if pathPrefix != "" {
+			destKey = fmt.Sprintf("%s/%s", pathPrefix, object.Key)
+		} else {
+			destKey = object.Key // Root of bucket
+		}
 
 		_, err = destClient.PutObject(ctx, job.DestinationBucket, destKey, srcObject, object.Size, minio.PutObjectOptions{
 			ContentType: "application/octet-stream",
@@ -536,20 +551,29 @@ func (s *BackupService) executeUncompressedBucketBackup(job *models.BackupJob, r
 	// Update backup job status
 	now := time.Now()
 	job.LastRun = &now
+
+	// Determine backup path for display
+	var backupPath string
+	if pathPrefix != "" {
+		backupPath = fmt.Sprintf("%s/%s", job.DestinationBucket, pathPrefix)
+	} else {
+		backupPath = job.DestinationBucket
+	}
+
 	if len(errors) > 0 {
 		job.Status = "failed"
 		errorMsg := fmt.Sprintf("Completed with %d errors: %s", len(errors), errors[0])
 		if len(errors) > 1 {
 			errorMsg += fmt.Sprintf(" (and %d more)", len(errors)-1)
 		}
-		s.updateBackupRun(run, "failed", errorMsg, filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, pathPrefix))
+		s.updateBackupRun(run, "failed", errorMsg, filesCount, bytesCount, backupPath)
 	} else {
 		job.Status = "completed"
 		if job.Schedule != "" {
 			nextRun, _ := s.calculateNextRun(job.Schedule)
 			job.NextRun = &nextRun
 		}
-		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, pathPrefix))
+		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, backupPath)
 	}
 	s.repo.UpdateJob(job)
 }
@@ -649,7 +673,7 @@ func (s *BackupService) RestoreBackup(instanceID uint, backupPath, targetBucket 
 func (s *BackupService) calculateNextRun(schedule string) (time.Time, error) {
 	// This is a simplified implementation
 	// In production, you'd use a proper cron parser like github.com/robfig/cron
-	
+
 	// For now, just add 24 hours for daily backups
 	return time.Now().Add(24 * time.Hour), nil
 }
