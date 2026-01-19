@@ -1,6 +1,16 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlusIcon, TrashIcon, PencilIcon, InformationCircleIcon, CheckCircleIcon, ExclamationTriangleIcon, ServerIcon } from '@heroicons/react/24/outline';
+import { 
+  PlusIcon, 
+  TrashIcon, 
+  PencilIcon, 
+  InformationCircleIcon, 
+  CheckCircleIcon, 
+  ExclamationTriangleIcon, 
+  ServerIcon,
+  CircleStackIcon,
+  LockClosedIcon
+} from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../services/api';
 import Modal from '../components/Modal';
@@ -18,8 +28,69 @@ interface RustFSInstance {
   created_at: string;
 }
 
+type InstanceType = 'object-storage' | 'postgres' | 'mysql' | 'mongodb' | 'redis';
+
+interface InstanceTypeConfig {
+  id: InstanceType;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  bgColor: string;
+  description: string;
+  available: boolean;
+}
+
+const instanceTypes: InstanceTypeConfig[] = [
+  {
+    id: 'object-storage',
+    name: 'Object Storage',
+    icon: CircleStackIcon,
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-50',
+    description: 'S3-compatible object storage (RustFS, MinIO, AWS S3)',
+    available: true,
+  },
+  {
+    id: 'postgres',
+    name: 'PostgreSQL',
+    icon: ServerIcon,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
+    description: 'PostgreSQL database instances',
+    available: false,
+  },
+  {
+    id: 'mysql',
+    name: 'MySQL',
+    icon: ServerIcon,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    description: 'MySQL/MariaDB database instances',
+    available: false,
+  },
+  {
+    id: 'mongodb',
+    name: 'MongoDB',
+    icon: ServerIcon,
+    color: 'text-green-600',
+    bgColor: 'bg-green-50',
+    description: 'MongoDB NoSQL database instances',
+    available: false,
+  },
+  {
+    id: 'redis',
+    name: 'Redis',
+    icon: ServerIcon,
+    color: 'text-red-600',
+    bgColor: 'bg-red-50',
+    description: 'Redis in-memory data store instances',
+    available: false,
+  },
+];
+
 export default function Instances() {
   const { user } = useAuth();
+  const [selectedType, setSelectedType] = useState<InstanceType>('object-storage');
   const [showModal, setShowModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editingInstance, setEditingInstance] = useState<RustFSInstance | null>(null);
@@ -91,6 +162,38 @@ export default function Instances() {
     });
   };
 
+  const handleTypeClick = (type: InstanceType) => {
+    const typeConfig = instanceTypes.find(t => t.id === type);
+    if (!typeConfig?.available) {
+      toast('Coming soon! This feature is under development.', {
+        icon: '🚀',
+        duration: 3000,
+      });
+      return;
+    }
+    setSelectedType(type);
+  };
+
+  const handleAddInstance = () => {
+    const typeConfig = instanceTypes.find(t => t.id === selectedType);
+    if (!typeConfig?.available) {
+      toast('Coming soon! This feature is under development.', {
+        icon: '🚀',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (!user?.is_premium && instances && instances.length >= 1) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    
+    setEditingInstance(null);
+    resetForm();
+    setShowModal(true);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -127,6 +230,8 @@ export default function Instances() {
     }
   };
 
+  const currentTypeConfig = instanceTypes.find(t => t.id === selectedType);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -140,115 +245,186 @@ export default function Instances() {
       {/* Header */}
       <div className="sm:flex sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">RustFS Instances</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Instances</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Manage your S3-compatible storage instances
+            Manage your storage and database instances
           </p>
-        </div>
-        <div className="mt-4 sm:mt-0">
-          <button
-            onClick={() => {
-              // Check if user is premium or has less than 1 instance
-              if (!user?.is_premium && instances && instances.length >= 1) {
-                setShowUpgradeModal(true);
-                return;
-              }
-              setEditingInstance(null);
-              resetForm();
-              setShowModal(true);
-            }}
-            className="btn-primary w-full sm:w-auto"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Instance
-          </button>
         </div>
       </div>
 
-      {/* Empty State */}
-      {instances?.length === 0 && (
-        <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-200">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 mb-4">
-            <ServerIcon className="h-8 w-8 text-indigo-600" />
+      {/* Instance Type Tabs */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {instanceTypes.map((type) => {
+            const Icon = type.icon;
+            const isSelected = selectedType === type.id;
+            const isLocked = !type.available;
+            
+            return (
+              <button
+                key={type.id}
+                onClick={() => handleTypeClick(type.id)}
+                className={`relative p-4 rounded-lg border-2 transition-all text-left ${
+                  isSelected
+                    ? `border-${type.color.replace('text-', '')} ${type.bgColor}`
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                } ${isLocked ? 'opacity-60' : ''}`}
+              >
+                {isLocked && (
+                  <div className="absolute top-2 right-2">
+                    <LockClosedIcon className="h-4 w-4 text-gray-400" />
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <div className={`${type.bgColor} p-2 rounded-lg`}>
+                    <Icon className={`h-6 w-6 ${type.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm text-gray-900 truncate">
+                      {type.name}
+                    </div>
+                    {isLocked && (
+                      <div className="text-xs text-gray-500 mt-0.5">Coming Soon</div>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected Type Info & Add Button */}
+      {currentTypeConfig && (
+        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-100 p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className={`${currentTypeConfig.bgColor} p-3 rounded-xl`}>
+                <currentTypeConfig.icon className={`h-8 w-8 ${currentTypeConfig.color}`} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{currentTypeConfig.name}</h2>
+                <p className="text-sm text-gray-600 mt-1">{currentTypeConfig.description}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleAddInstance}
+              className={`btn-primary w-full sm:w-auto ${!currentTypeConfig.available ? 'opacity-60' : ''}`}
+            >
+              <PlusIcon className="h-5 w-5 mr-2" />
+              Add Instance
+            </button>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No instances yet</h3>
-          <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
-            Get started by creating your first storage instance to manage your S3-compatible storage.
-          </p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="btn-primary"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Your First Instance
-          </button>
         </div>
       )}
 
-      {/* Instances Grid */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {instances?.map((instance) => (
-          <div key={instance.id} className="card p-6 hover:border-indigo-200">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">{instance.name}</h3>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                  instance.status === 'active' 
-                    ? 'bg-green-100 text-green-700' 
-                    : 'bg-red-100 text-red-700'
-                }`}>
-                  {instance.status === 'active' ? (
-                    <CheckCircleIcon className="h-3.5 w-3.5 mr-1.5" />
-                  ) : (
-                    <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1.5" />
-                  )}
-                  {instance.status}
-                </span>
+      {/* Content based on selected type */}
+      {selectedType === 'object-storage' ? (
+        <>
+          {/* Empty State */}
+          {instances?.length === 0 && (
+            <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-200">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 mb-4">
+                <CircleStackIcon className="h-8 w-8 text-indigo-600" />
               </div>
-            </div>
-            
-            <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
-              {instance.description || 'No description provided'}
-            </p>
-            
-            <div className="space-y-3 mb-6">
-              <div className="flex items-start">
-                <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0 pt-0.5">Endpoint</span>
-                <span className="text-sm text-gray-900 font-mono break-all">{instance.endpoint}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0">Region</span>
-                <span className="text-sm text-gray-900">{instance.region}</span>
-              </div>
-              <div className="flex items-center">
-                <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0">SSL</span>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                  instance.ssl ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {instance.ssl ? 'Enabled' : 'Disabled'}
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No instances yet</h3>
+              <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+                Get started by creating your first storage instance to manage your S3-compatible storage.
+              </p>
               <button
-                onClick={() => handleEdit(instance)}
-                className="flex-1 btn-secondary py-2 text-xs"
+                onClick={() => setShowModal(true)}
+                className="btn-primary"
               >
-                <PencilIcon className="h-4 w-4 mr-1.5" />
-                Edit
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Your First Instance
               </button>
-              <button
-                onClick={() => handleDelete(instance.id)}
-                className="flex-1 btn-danger py-2 text-xs"
-              >
-                <TrashIcon className="h-4 w-4 mr-1.5" />
-                Delete
-              </button>
+            </div>
+          )}
+
+          {/* Instances Grid */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {instances?.map((instance: RustFSInstance) => (
+              <div key={instance.id} className="card p-6 hover:border-indigo-200">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">{instance.name}</h3>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                      instance.status === 'active' 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {instance.status === 'active' ? (
+                        <CheckCircleIcon className="h-3.5 w-3.5 mr-1.5" />
+                      ) : (
+                        <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      {instance.status}
+                    </span>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
+                  {instance.description || 'No description provided'}
+                </p>
+                
+                <div className="space-y-3 mb-6">
+                  <div className="flex items-start">
+                    <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0 pt-0.5">Endpoint</span>
+                    <span className="text-sm text-gray-900 font-mono break-all">{instance.endpoint}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0">Region</span>
+                    <span className="text-sm text-gray-900">{instance.region}</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0">SSL</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                      instance.ssl ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {instance.ssl ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(instance)}
+                    className="flex-1 btn-secondary py-2 text-xs"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-1.5" />
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(instance.id)}
+                    className="flex-1 btn-danger py-2 text-xs"
+                  >
+                    <TrashIcon className="h-4 w-4 mr-1.5" />
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        /* Coming Soon State for other types */
+        <div className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-200">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4 relative">
+            {currentTypeConfig && <currentTypeConfig.icon className="h-8 w-8 text-gray-400" />}
+            <div className="absolute -top-1 -right-1 bg-yellow-100 rounded-full p-1.5">
+              <LockClosedIcon className="h-4 w-4 text-yellow-600" />
             </div>
           </div>
-        ))}
-      </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Coming Soon</h3>
+          <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+            {currentTypeConfig?.name} instance management is currently under development. Stay tuned for updates!
+          </p>
+          <div className="inline-flex items-center px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+            <InformationCircleIcon className="h-5 w-5 mr-2" />
+            We're working hard to bring this feature to you soon
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       <Modal
