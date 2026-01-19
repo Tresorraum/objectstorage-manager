@@ -31,6 +31,8 @@ func main() {
 	backupRepo := repository.NewBackupRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
+	postgresRepo := repository.NewPostgresRepository(db)
+	vpsRepo := repository.NewVPSRepository(db)
 
 	// Initialize services
 	rustfsService := services.NewRustFSService()
@@ -39,12 +41,23 @@ func main() {
 	backupService := services.NewBackupService(backupRepo, instanceRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
+	// Get encryption key from environment or use default (should be in config in production)
+	encryptionKey := os.Getenv("ENCRYPTION_KEY")
+	if encryptionKey == "" {
+		encryptionKey = "default-encryption-key-change-in-production"
+		log.Println("WARNING: Using default encryption key. Set ENCRYPTION_KEY environment variable in production!")
+	}
+	postgresService := services.NewPostgresService(postgresRepo, auditService, encryptionKey)
+	vpsService := services.NewVPSService(vpsRepo, auditService, encryptionKey)
+
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	backupHandler := handlers.NewBackupHandler(backupService)
 	rustfsHandler := handlers.NewRustFSHandler(rustfsService, instanceRepo)
 	auditHandler := handlers.NewAuditHandler(auditService)
+	postgresHandler := handlers.NewPostgresHandler(postgresService)
+	vpsHandler := handlers.NewVPSHandler(vpsService)
 
 	// Setup Gin router
 	r := gin.Default()
@@ -117,6 +130,28 @@ func main() {
 				audit.GET("/logs", auditHandler.GetLogs)
 				audit.GET("/logs/me", auditHandler.GetUserLogs)
 				audit.GET("/stats", auditHandler.GetStats)
+			}
+
+			// PostgreSQL routes
+			postgres := protected.Group("/postgres")
+			{
+				postgres.GET("/instances", postgresHandler.GetInstances)
+				postgres.POST("/instances", postgresHandler.CreateInstance)
+				postgres.GET("/instances/:id", postgresHandler.GetInstance)
+				postgres.PUT("/instances/:id", postgresHandler.UpdateInstance)
+				postgres.DELETE("/instances/:id", postgresHandler.DeleteInstance)
+				postgres.POST("/instances/:id/test", postgresHandler.TestConnection)
+			}
+
+			// VPS routes
+			vps := protected.Group("/vps")
+			{
+				vps.GET("/instances", vpsHandler.GetInstances)
+				vps.POST("/instances", vpsHandler.CreateInstance)
+				vps.GET("/instances/:id", vpsHandler.GetInstance)
+				vps.PUT("/instances/:id", vpsHandler.UpdateInstance)
+				vps.DELETE("/instances/:id", vpsHandler.DeleteInstance)
+				vps.POST("/instances/:id/test", vpsHandler.TestConnection)
 			}
 		}
 	}

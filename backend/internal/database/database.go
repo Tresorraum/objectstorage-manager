@@ -3,10 +3,11 @@ package database
 import (
 	"fmt"
 
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 	"rustfs-manager/internal/config"
 	"rustfs-manager/internal/models"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func Initialize(cfg config.DatabaseConfig) (*gorm.DB, error) {
@@ -22,6 +23,8 @@ func Initialize(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.RustFSInstance{},
+		&models.PostgresInstance{},
+		&models.VPSInstance{},
 		&models.BackupJob{},
 		&models.BackupRun{},
 		&models.Metric{},
