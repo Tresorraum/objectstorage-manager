@@ -264,6 +264,7 @@ export default function Backups() {
       delete payload.destination_bucket;
     }
 
+    console.log('Submitting backup job with compression_enabled:', payload.compression_enabled);
     createMutation.mutate(payload);
   };
 
