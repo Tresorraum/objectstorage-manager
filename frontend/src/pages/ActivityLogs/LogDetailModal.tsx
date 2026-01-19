@@ -32,8 +32,10 @@ export default function LogDetailModal({ log, onClose }: LogDetailModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}></div>
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-2xl shadow-2xl max-w-3xl w-full my-8 overflow-hidden flex flex-col max-h-[calc(100vh-4rem)]">
         <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -191,6 +193,7 @@ export default function LogDetailModal({ log, onClose }: LogDetailModalProps) {
           <button onClick={handleCopy} className="btn-primary">
             Copy Details
           </button>
+        </div>
         </div>
       </div>
     </div>
