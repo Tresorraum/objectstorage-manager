@@ -4,14 +4,15 @@ import (
 	"log"
 	"os"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"rustfs-manager/internal/config"
 	"rustfs-manager/internal/database"
 	"rustfs-manager/internal/handlers"
 	"rustfs-manager/internal/middleware"
 	"rustfs-manager/internal/repository"
 	"rustfs-manager/internal/services"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -29,11 +30,13 @@ func main() {
 	instanceRepo := repository.NewInstanceRepository(db)
 	backupRepo := repository.NewBackupRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
+	auditRepo := repository.NewAuditRepository(db)
 
 	// Initialize services
 	rustfsService := services.NewRustFSService()
 	userService := services.NewUserService(userRepo)
-	backupService := services.NewBackupService(backupRepo, instanceRepo)
+	auditService := services.NewAuditService(auditRepo)
+	backupService := services.NewBackupService(backupRepo, instanceRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
 	// Initialize handlers
@@ -41,6 +44,7 @@ func main() {
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	backupHandler := handlers.NewBackupHandler(backupService)
 	rustfsHandler := handlers.NewRustFSHandler(rustfsService, instanceRepo)
+	auditHandler := handlers.NewAuditHandler(auditService)
 
 	// Setup Gin router
 	r := gin.Default()
@@ -73,6 +77,7 @@ func main() {
 		// Protected routes
 		protected := api.Group("/")
 		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuditMiddleware(auditService))
 		{
 			// Dashboard routes
 			dashboard := protected.Group("/dashboard")
@@ -104,6 +109,14 @@ func main() {
 				backup.DELETE("/jobs/:id", backupHandler.DeleteJob)
 				backup.POST("/jobs/:id/run", backupHandler.RunJob)
 				backup.POST("/restore", backupHandler.RestoreBackup)
+			}
+
+			// Audit routes
+			audit := protected.Group("/audit")
+			{
+				audit.GET("/logs", auditHandler.GetLogs)
+				audit.GET("/logs/me", auditHandler.GetUserLogs)
+				audit.GET("/stats", auditHandler.GetStats)
 			}
 		}
 	}

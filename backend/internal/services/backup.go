@@ -22,13 +22,15 @@ type BackupService struct {
 	repo          repository.BackupRepository
 	instanceRepo  repository.InstanceRepository
 	rustfsService *RustFSService
+	auditService  *AuditService
 }
 
-func NewBackupService(repo repository.BackupRepository, instanceRepo repository.InstanceRepository) *BackupService {
+func NewBackupService(repo repository.BackupRepository, instanceRepo repository.InstanceRepository, auditService *AuditService) *BackupService {
 	return &BackupService{
 		repo:          repo,
 		instanceRepo:  instanceRepo,
 		rustfsService: NewRustFSService(),
+		auditService:  auditService,
 	}
 }
 
@@ -589,6 +591,24 @@ func (s *BackupService) updateBackupRun(run *models.BackupRun, status, errorMsg 
 	run.BackupPath = backupPath
 
 	s.repo.UpdateRun(run)
+
+	// Log audit entry for backup run completion
+	if s.auditService != nil {
+		details := map[string]interface{}{
+			"status":     status,
+			"files":      filesCount,
+			"size_bytes": bytesCount,
+		}
+		if errorMsg != "" {
+			details["error"] = errorMsg
+		}
+		if backupPath != "" {
+			details["backup_path"] = backupPath
+		}
+
+		jobID := run.BackupJobID
+		go s.auditService.LogAction(nil, "backup_run", "backup_job", &jobID, details, "system", "BackupScheduler/1.0")
+	}
 }
 
 // updateBackupJobStatus updates the backup job status
