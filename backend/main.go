@@ -57,6 +57,7 @@ func main() {
 	rustfsHandler := handlers.NewRustFSHandler(rustfsService, instanceRepo)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	postgresHandler := handlers.NewPostgresHandler(postgresService)
+	postgresBackupHandler := handlers.NewPostgresBackupHandler(postgresService, vpsService)
 	vpsHandler := handlers.NewVPSHandler(vpsService)
 
 	// Setup Gin router
@@ -141,6 +142,9 @@ func main() {
 				postgres.PUT("/instances/:id", postgresHandler.UpdateInstance)
 				postgres.DELETE("/instances/:id", postgresHandler.DeleteInstance)
 				postgres.POST("/instances/:id/test", postgresHandler.TestConnection)
+
+				// Backup route
+				postgres.POST("/backup", postgresBackupHandler.CreateBackup)
 			}
 
 			// VPS routes
