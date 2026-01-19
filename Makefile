@@ -18,20 +18,17 @@ dev-reset:
 	docker compose down -v
 	docker compose up -d
 
-# Production - build and push to Docker Hub
+# Production - build and push to Docker Hub (multi-platform)
 prod-build:
-	@echo "Building production images..."
+	@echo "Building production images for multiple platforms..."
 	@. ./.env && \
-	docker build -t $$DOCKER_USERNAME/rustfs-manager-backend:latest ./backend && \
-	docker build --build-arg VITE_API_URL=https://storage-manager.zendevz.com/api/v1 -t $$DOCKER_USERNAME/rustfs-manager-frontend:latest ./frontend
-	@echo "Build complete!"
+	docker buildx build --platform linux/amd64,linux/arm64 -t $$DOCKER_USERNAME/rustfs-manager-backend:latest ./backend --push && \
+	docker buildx build --platform linux/amd64,linux/arm64 --build-arg VITE_API_URL=https://storage-manager.zendevz.com/api/v1 -t $$DOCKER_USERNAME/rustfs-manager-frontend:latest ./frontend --push
+	@echo "Build and push complete!"
 
 prod-push:
-	@echo "Pushing images to Docker Hub..."
-	@. ./.env && \
-	docker push $$DOCKER_USERNAME/rustfs-manager-backend:latest && \
-	docker push $$DOCKER_USERNAME/rustfs-manager-frontend:latest
-	@echo "Push complete!"
+	@echo "Images are already pushed during build with buildx"
+	@echo "If you need to push again, run 'make prod-build'"
 
 # SSL Setup
 setup-ssl:
