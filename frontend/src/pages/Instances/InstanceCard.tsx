@@ -1,5 +1,11 @@
 import React from 'react';
-import { PencilIcon, TrashIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import {
+  PencilIcon,
+  TrashIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  CircleStackIcon,
+} from '@heroicons/react/24/outline';
 import { RustFSInstance } from './types';
 
 interface InstanceCardProps {
@@ -9,64 +15,81 @@ interface InstanceCardProps {
 }
 
 export default function InstanceCard({ instance, onEdit, onDelete }: InstanceCardProps) {
+  const isActive = instance.status === 'active';
+
   return (
-    <div className="card p-6 hover:border-indigo-200">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">{instance.name}</h3>
-          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-            instance.status === 'active' 
-              ? 'bg-green-100 text-green-700' 
-              : 'bg-red-100 text-red-700'
-          }`}>
-            {instance.status === 'active' ? (
-              <CheckCircleIcon className="h-3.5 w-3.5 mr-1.5" />
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow overflow-hidden">
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-50 p-3 rounded-xl">
+              <CircleStackIcon className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">{instance.name}</h3>
+              <p className="text-sm text-gray-500">Object Storage</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isActive ? (
+              <CheckCircleIcon className="h-5 w-5 text-green-500" />
             ) : (
-              <ExclamationTriangleIcon className="h-3.5 w-3.5 mr-1.5" />
+              <XCircleIcon className="h-5 w-5 text-red-500" />
             )}
-            {instance.status}
+            <span className={`text-xs font-medium ${isActive ? 'text-green-700' : 'text-red-700'}`}>
+              {isActive ? 'Active' : 'Inactive'}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Endpoint:</span>
+            <span className="font-mono text-gray-900 text-xs truncate max-w-[200px]" title={instance.endpoint}>
+              {instance.endpoint}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Region:</span>
+            <span className="text-gray-900">{instance.region}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">SSL:</span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+              instance.ssl ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+            }`}>
+              {instance.ssl ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+
+        {instance.description && (
+          <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+            {instance.description}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+          <span className="text-xs text-gray-500">
+            Added {new Date(instance.created_at).toLocaleDateString()}
           </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(instance)}
+              className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              title="Edit instance"
+            >
+              <PencilIcon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => onDelete(instance.id)}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete instance"
+            >
+              <TrashIcon className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
-      
-      <p className="text-sm text-gray-600 mb-4 line-clamp-2 min-h-[40px]">
-        {instance.description || 'No description provided'}
-      </p>
-      
-      <div className="space-y-3 mb-6">
-        <div className="flex items-start">
-          <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0 pt-0.5">Endpoint</span>
-          <span className="text-sm text-gray-900 font-mono break-all">{instance.endpoint}</span>
-        </div>
-        <div className="flex items-center">
-          <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0">Region</span>
-          <span className="text-sm text-gray-900">{instance.region}</span>
-        </div>
-        <div className="flex items-center">
-          <span className="text-xs font-medium text-gray-500 w-20 flex-shrink-0">SSL</span>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-            instance.ssl ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-700'
-          }`}>
-            {instance.ssl ? 'Enabled' : 'Disabled'}
-          </span>
-        </div>
-      </div>
-      
-      <div className="flex gap-2">
-        <button
-          onClick={() => onEdit(instance)}
-          className="flex-1 btn-secondary py-2 text-xs"
-        >
-          <PencilIcon className="h-4 w-4 mr-1.5" />
-          Edit
-        </button>
-        <button
-          onClick={() => onDelete(instance.id)}
-          className="flex-1 btn-danger py-2 text-xs"
-        >
-          <TrashIcon className="h-4 w-4 mr-1.5" />
-          Delete
-        </button>
       </div>
     </div>
   );
