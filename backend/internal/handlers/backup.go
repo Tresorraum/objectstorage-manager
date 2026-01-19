@@ -93,6 +93,14 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	if req.CompressionType == "" {
 		req.CompressionType = "gzip"
 	}
+	// For bucket backups, default to compressed if not explicitly set
+	// Note: We can't distinguish between "not set" and "false" with bool,
+	// so we rely on the frontend always sending this field
+	compressionEnabled := req.CompressionEnabled
+	if req.BackupType == "bucket" {
+		// Frontend should always send this, but default to true for safety
+		compressionEnabled = req.CompressionEnabled
+	}
 
 	job := &models.BackupJob{
 		UserID:                userID.(uint),
@@ -107,7 +115,7 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 		Enabled:               req.Enabled,
 		RetentionDays:         req.RetentionDays,
 		CompressionType:       req.CompressionType,
-		CompressionEnabled:    req.CompressionEnabled,
+		CompressionEnabled:    compressionEnabled,
 	}
 
 	if err := h.backupService.CreateBackupJob(job); err != nil {

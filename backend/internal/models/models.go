@@ -56,7 +56,7 @@ type BackupJob struct {
 	Enabled                bool           `json:"enabled" gorm:"default:true"`
 	RetentionDays          int            `json:"retention_days" gorm:"default:30"`
 	CompressionType        string         `json:"compression_type" gorm:"default:gzip"` // "gzip", "none"
-	CompressionEnabled     bool           `json:"compression_enabled" gorm:"default:true"` // For bucket backups: true = tar.gz archive, false = direct copy
+	CompressionEnabled     bool           `json:"compression_enabled"` // For bucket backups: true = tar.gz archive, false = direct copy
 	LastRun                *time.Time     `json:"last_run"`
 	NextRun                *time.Time     `json:"next_run"`
 	Status                 string         `json:"status" gorm:"default:pending"`
