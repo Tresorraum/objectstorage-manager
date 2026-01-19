@@ -19,7 +19,6 @@ frontend/.vite/
 
 # Database
 data/
-backups/
 logs/
 
 # Docker
