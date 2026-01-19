@@ -17,8 +17,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
-    image: ${DOCKER_USERNAME}/rustfs-manager-backend:latest
+      dockerfile: Dockerfile.dev
     container_name: rustfs-manager-api
     restart: unless-stopped
     environment:
@@ -29,12 +28,13 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - PORT=8080
-      - GO_ENV=production
+      - GO_ENV=development
     ports:
       - "8080:8080"
     depends_on:
       - postgres
     volumes:
+      - ./backend:/app
       - ./backups:/app/backups
       - ./logs:/app/logs
     networks:
@@ -43,16 +43,18 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://localhost:8080/api/v1
-    image: ${DOCKER_USERNAME}/rustfs-manager-frontend:latest
+      dockerfile: Dockerfile.dev
     container_name: rustfs-manager-ui
     restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
     ports:
-      - "3000:80"
+      - "3000:3000"
     depends_on:
       - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     networks:
       - rustfs-manager
 
