@@ -12,6 +12,10 @@ import Instances from './pages/Instances';
 import Backups from './pages/Backups';
 import Settings from './pages/Settings';
 import Subscribe from './pages/Subscribe';
+import Analytics from './pages/Analytics';
+import ActivityLogs from './pages/ActivityLogs';
+import Team from './pages/Team';
+import APIKeys from './pages/APIKeys';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +62,10 @@ function AppRoutes() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/instances" element={<Instances />} />
                 <Route path="/backups" element={<Backups />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/activity-logs" element={<ActivityLogs />} />
+                <Route path="/team" element={<Team />} />
+                <Route path="/api-keys" element={<APIKeys />} />
                 <Route path="/subscribe" element={<Subscribe />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>

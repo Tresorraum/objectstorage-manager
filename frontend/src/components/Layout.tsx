@@ -8,6 +8,12 @@ import {
   Bars3Icon,
   XMarkIcon,
   ArrowRightOnRectangleIcon,
+  ChartBarIcon,
+  DocumentTextIcon,
+  UserGroupIcon,
+  KeyIcon,
+  BellIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -15,6 +21,10 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Instances', href: '/instances', icon: ServerIcon },
   { name: 'Backups', href: '/backups', icon: CloudArrowUpIcon },
+  { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, premium: true },
+  { name: 'Activity Logs', href: '/activity-logs', icon: DocumentTextIcon, premium: true },
+  { name: 'Team', href: '/team', icon: UserGroupIcon, premium: true },
+  { name: 'API Keys', href: '/api-keys', icon: KeyIcon, premium: true },
   { name: 'Settings', href: '/settings', icon: CogIcon },
 ];
 
@@ -66,14 +76,21 @@ export default function Layout({ children }: LayoutProps) {
                   key={item.name}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  className={`flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                     isActive
                       ? 'bg-indigo-50 text-indigo-700 shadow-sm'
                       : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
-                  {item.name}
+                  <div className="flex items-center">
+                    <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
+                    {item.name}
+                  </div>
+                  {item.premium && !user?.is_premium && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                      Pro
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -125,14 +142,21 @@ export default function Layout({ children }: LayoutProps) {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  className={`flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                     isActive
                       ? 'bg-indigo-50 text-indigo-700 shadow-sm'
                       : 'text-gray-700 hover:bg-gray-50'
                   }`}
                 >
-                  <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
-                  {item.name}
+                  <div className="flex items-center">
+                    <item.icon className={`mr-3 h-5 w-5 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
+                    {item.name}
+                  </div>
+                  {item.premium && !user?.is_premium && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                      Pro
+                    </span>
+                  )}
                 </Link>
               );
             })}
