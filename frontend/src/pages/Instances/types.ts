@@ -10,7 +10,33 @@ export interface RustFSInstance {
   created_at: string;
 }
 
-export type InstanceType = 'object-storage' | 'postgres' | 'mysql' | 'mongodb' | 'redis';
+export interface PostgresInstance {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  ssl: boolean;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
+export interface VPSInstance {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  auth_type: 'password' | 'ssh_key';
+  backup_path: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
+export type InstanceType = 'object-storage' | 'postgres' | 'vps' | 'mysql' | 'mongodb' | 'redis';
 
 export interface InstanceTypeConfig {
   id: InstanceType;
@@ -29,5 +55,28 @@ export interface InstanceFormData {
   secret_key: string;
   region: string;
   ssl: boolean;
+  description: string;
+}
+
+export interface PostgresFormData {
+  name: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  ssl: boolean;
+  description: string;
+}
+
+export interface VPSFormData {
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  auth_type: 'password' | 'ssh_key';
+  password: string;
+  ssh_key: string;
+  backup_path: string;
   description: string;
 }

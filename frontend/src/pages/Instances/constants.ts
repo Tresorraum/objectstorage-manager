@@ -1,4 +1,4 @@
-import { ServerIcon, CircleStackIcon } from '@heroicons/react/24/outline';
+import { ServerIcon, CircleStackIcon, CloudIcon } from '@heroicons/react/24/outline';
 import { InstanceTypeConfig } from './types';
 
 export const instanceTypes: InstanceTypeConfig[] = [
@@ -18,7 +18,16 @@ export const instanceTypes: InstanceTypeConfig[] = [
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
     description: 'PostgreSQL database instances',
-    available: false,
+    available: true,
+  },
+  {
+    id: 'vps',
+    name: 'VPS Server',
+    icon: CloudIcon,
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+    description: 'Virtual Private Server for remote backups',
+    available: true,
   },
   {
     id: 'mysql',
