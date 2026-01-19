@@ -6,8 +6,8 @@ WORKDIR /app
 # Install air for hot reloading (compatible version)
 RUN go install github.com/cosmtrek/air@v1.49.0
 
-# Install dependencies
-RUN apk add --no-cache git
+# Install dependencies including PostgreSQL client for pg_dump
+RUN apk add --no-cache git postgresql-client
 
 # Copy go mod files
 COPY go.mod go.sum ./

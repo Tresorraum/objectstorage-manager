@@ -9,9 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
 	"rustfs-manager/internal/repository"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -244,4 +248,67 @@ func (s *PostgresService) TestConnection(instance *models.PostgresInstance) erro
 // GetDecryptedPassword returns the decrypted password (use with caution)
 func (s *PostgresService) GetDecryptedPassword(instance *models.PostgresInstance) (string, error) {
 	return s.decrypt(instance.Password)
+}
+
+// CreateBackupDump creates a PostgreSQL backup using pg_dump and returns the SQL dump
+func (s *PostgresService) CreateBackupDump(instance *models.PostgresInstance) ([]byte, string, error) {
+	// Decrypt password
+	password, err := s.decrypt(instance.Password)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
+	// Build connection string
+	sslMode := "disable"
+	if instance.SSL {
+		sslMode = "require"
+	}
+
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		instance.Host, instance.Port, instance.Username, password, instance.Database, sslMode)
+
+	// Execute pg_dump
+	cmd := exec.Command("pg_dump", connStr)
+
+	// Set environment variable for password (alternative method)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("PGPASSWORD=%s", password))
+
+	// Capture output
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, "", fmt.Errorf("pg_dump failed: %w, output: %s", err, string(output))
+	}
+
+	// Generate filename
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("%s_%s.sql", instance.Database, timestamp)
+
+	return output, filename, nil
+}
+
+// CreateBackupToVPS creates a PostgreSQL backup and uploads it to a VPS
+func (s *PostgresService) CreateBackupToVPS(postgresInstance *models.PostgresInstance, vpsInstance *models.VPSInstance) (string, error) {
+	// Create backup dump
+	sqlDump, filename, err := s.CreateBackupDump(postgresInstance)
+	if err != nil {
+		return "", err
+	}
+
+	// Get VPS service to upload file
+	// We need to decrypt VPS credentials and establish SSH connection
+	// For now, we'll save the dump to a temp file and use SCP
+
+	// Create temp file
+	tempFile := filepath.Join(os.TempDir(), filename)
+	if err := os.WriteFile(tempFile, sqlDump, 0600); err != nil {
+		return "", fmt.Errorf("failed to write temp file: %w", err)
+	}
+	defer os.Remove(tempFile)
+
+	// Build destination path on VPS
+	destPath := filepath.Join(vpsInstance.BackupPath, filename)
+
+	// Use SCP to upload (we'll need to implement this in VPS service)
+	// For now, return the path where it should be uploaded
+	return destPath, fmt.Errorf("VPS upload not yet implemented - backup created at: %s", tempFile)
 }
