@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlayIcon, ShieldCheckIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, ShieldCheckIcon, Cog6ToothIcon, CloudArrowUpIcon, ServerIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import Modal from '../../components/Modal';
@@ -9,22 +9,31 @@ interface CreateBackupButtonProps {
   databaseId: string;
   databaseName: string;
   disabled?: boolean;
+  vpsInstances?: any[];
+  objectStorageInstances?: any[];
 }
 
 interface BackupConfig {
   encryption: boolean;
   compressionLevel: number;
+  destinationType: 'local' | 'vps' | 'object_storage';
+  vpsInstanceId?: string;
+  objectStorageInstanceId?: string;
+  objectStorageBucket?: string;
 }
 
 export default function CreateBackupButton({
   databaseId,
   databaseName,
   disabled = false,
+  vpsInstances = [],
+  objectStorageInstances = [],
 }: CreateBackupButtonProps) {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [config, setConfig] = useState<BackupConfig>({
     encryption: true,
     compressionLevel: 5,
+    destinationType: 'object_storage',
   });
   const queryClient = useQueryClient();
 
@@ -33,6 +42,12 @@ export default function CreateBackupButton({
     mutationFn: () =>
       api.post('/backups', {
         database_id: databaseId,
+        destination_type: config.destinationType,
+        vps_instance_id: config.vpsInstanceId,
+        object_storage_instance_id: config.objectStorageInstanceId,
+        object_storage_bucket: config.objectStorageBucket,
+        encryption: config.encryption,
+        compression_level: config.compressionLevel,
       }),
     onSuccess: () => {
       toast.success('Backup started successfully');
@@ -126,6 +141,153 @@ export default function CreateBackupButton({
               </div>
             </label>
           </div>
+
+          {/* Backup Destination */}
+          <div className="space-y-3">
+            <label className="input-label">Backup Destination</label>
+            <div className="grid grid-cols-1 gap-3">
+              {/* Object Storage Option */}
+              <button
+                type="button"
+                onClick={() => setConfig({ ...config, destinationType: 'object_storage' })}
+                className={`p-4 border-2 rounded-lg text-left transition-all ${
+                  config.destinationType === 'object_storage'
+                    ? 'border-blue-600 bg-blue-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <CloudArrowUpIcon
+                    className={`h-6 w-6 flex-shrink-0 ${
+                      config.destinationType === 'object_storage' ? 'text-blue-600' : 'text-gray-400'
+                    }`}
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm">Object Storage (S3)</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Store in S3-compatible object storage (recommended)
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* VPS Option */}
+              <button
+                type="button"
+                onClick={() => setConfig({ ...config, destinationType: 'vps' })}
+                disabled={!vpsInstances || vpsInstances.length === 0}
+                className={`p-4 border-2 rounded-lg text-left transition-all ${
+                  config.destinationType === 'vps'
+                    ? 'border-purple-600 bg-purple-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                <div className="flex items-start gap-3">
+                  <ServerIcon
+                    className={`h-6 w-6 flex-shrink-0 ${
+                      config.destinationType === 'vps' ? 'text-purple-600' : 'text-gray-400'
+                    }`}
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm">VPS Server</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {vpsInstances && vpsInstances.length > 0
+                        ? 'Store on your VPS server'
+                        : 'No VPS configured'}
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* Local Download Option */}
+              <button
+                type="button"
+                onClick={() => setConfig({ ...config, destinationType: 'local' })}
+                className={`p-4 border-2 rounded-lg text-left transition-all ${
+                  config.destinationType === 'local'
+                    ? 'border-green-600 bg-green-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <ArrowDownTrayIcon
+                    className={`h-6 w-6 flex-shrink-0 ${
+                      config.destinationType === 'local' ? 'text-green-600' : 'text-gray-400'
+                    }`}
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-sm">Local Download</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Download backup directly to your computer
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Object Storage Selection */}
+          {config.destinationType === 'object_storage' && (
+            <>
+              <div>
+                <label className="input-label">Select Object Storage</label>
+                <select
+                  value={config.objectStorageInstanceId || ''}
+                  onChange={(e) =>
+                    setConfig({ ...config, objectStorageInstanceId: e.target.value })
+                  }
+                  className="input-field"
+                  required
+                >
+                  <option value="">Choose storage instance</option>
+                  {objectStorageInstances?.map((instance: any) => (
+                    <option key={instance.id} value={instance.id}>
+                      {instance.name} ({instance.endpoint})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="input-label">Bucket Name</label>
+                <input
+                  type="text"
+                  value={config.objectStorageBucket || ''}
+                  onChange={(e) =>
+                    setConfig({ ...config, objectStorageBucket: e.target.value })
+                  }
+                  className="input-field"
+                  placeholder="my-backups"
+                  required
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  The bucket will be created if it doesn't exist
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* VPS Selection */}
+          {config.destinationType === 'vps' && vpsInstances && vpsInstances.length > 0 && (
+            <div>
+              <label className="input-label">Select VPS Server</label>
+              <select
+                value={config.vpsInstanceId || ''}
+                onChange={(e) => setConfig({ ...config, vpsInstanceId: e.target.value })}
+                className="input-field"
+                required
+              >
+                <option value="">Choose VPS server</option>
+                {vpsInstances.map((vps: any) => (
+                  <option key={vps.id} value={vps.id}>
+                    {vps.name} ({vps.host}) - {vps.backup_path}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Backup will be uploaded to the configured backup path on the VPS
+              </p>
+            </div>
+          )}
 
           {/* Compression Level */}
           <div className="space-y-2">

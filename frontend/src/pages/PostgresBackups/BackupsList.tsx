@@ -9,10 +9,12 @@ import {
   ExclamationCircleIcon,
   ShieldCheckIcon,
   LockClosedIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import Modal from '../../components/Modal';
+import RestoreBackupModal from './RestoreBackupModal';
 import { formatBytes, formatDuration } from '../../utils/formatters';
 
 interface Backup {
@@ -36,6 +38,7 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
   const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = 10;
   const queryClient = useQueryClient();
@@ -121,6 +124,11 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
   const handleShowError = (backup: Backup) => {
     setSelectedBackup(backup);
     setShowErrorModal(true);
+  };
+
+  const handleRestore = (backup: Backup) => {
+    setSelectedBackup(backup);
+    setShowRestoreModal(true);
   };
 
   const getStatusIcon = (status: Backup['status']) => {
@@ -254,14 +262,23 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
                           </button>
                         )}
                         {backup.status === 'COMPLETED' && (
-                          <button
-                            onClick={() => downloadMutation.mutate(backup.id)}
-                            disabled={downloadMutation.isPending}
-                            className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
-                            title="Download backup"
-                          >
-                            <ArrowDownTrayIcon className="h-5 w-5" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => downloadMutation.mutate(backup.id)}
+                              disabled={downloadMutation.isPending}
+                              className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                              title="Download backup"
+                            >
+                              <ArrowDownTrayIcon className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleRestore(backup)}
+                              className="text-green-600 hover:text-green-900"
+                              title="Restore backup"
+                            >
+                              <ArrowPathIcon className="h-5 w-5" />
+                            </button>
+                          </>
                         )}
                         {backup.status === 'FAILED' && (
                           <button
@@ -409,6 +426,17 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
           </div>
         </div>
       </Modal>
+
+      {/* Restore Modal */}
+      <RestoreBackupModal
+        isOpen={showRestoreModal}
+        onClose={() => {
+          setShowRestoreModal(false);
+          setSelectedBackup(null);
+        }}
+        sourceBackup={selectedBackup}
+        sourceDatabaseName={databaseName}
+      />
     </div>
   );
 }
