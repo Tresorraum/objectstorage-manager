@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -19,6 +20,7 @@ import (
 	"rustfs-manager/internal/repository"
 
 	"github.com/google/uuid"
+	"github.com/minio/minio-go/v7"
 )
 
 type PostgresBackupService struct {
@@ -273,14 +275,49 @@ func (s *PostgresBackupService) uploadToObjectStorage(storageInstanceID uint, bu
 		return fmt.Errorf("storage instance not found: %w", err)
 	}
 
-	// TODO: Implement S3 upload using AWS SDK or MinIO client
-	// This is a placeholder
-	_ = storageInstance
-	_ = bucket
-	_ = key
-	_ = filePath
+	// Create RustFS service to get MinIO client
+	rustfsService := NewRustFSService()
+	client, err := rustfsService.GetClient(storageInstance)
+	if err != nil {
+		return fmt.Errorf("failed to create S3 client: %w", err)
+	}
 
-	return fmt.Errorf("object storage upload not yet implemented")
+	// Open the backup file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open backup file: %w", err)
+	}
+	defer file.Close()
+
+	// Get file info for size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	// Create bucket if it doesn't exist
+	ctx := context.Background()
+	exists, err := client.BucketExists(ctx, bucket)
+	if err != nil {
+		return fmt.Errorf("failed to check bucket existence: %w", err)
+	}
+
+	if !exists {
+		err = client.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to create bucket: %w", err)
+		}
+	}
+
+	// Upload file to S3
+	_, err = client.PutObject(ctx, bucket, key, file, fileInfo.Size(), minio.PutObjectOptions{
+		ContentType: "application/octet-stream",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upload to S3: %w", err)
+	}
+
+	return nil
 }
 
 // GetBackups retrieves backups for a database
