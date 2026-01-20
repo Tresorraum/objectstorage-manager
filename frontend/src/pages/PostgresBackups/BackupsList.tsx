@@ -38,6 +38,7 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
   const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = 10;
@@ -124,6 +125,11 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
   const handleShowError = (backup: Backup) => {
     setSelectedBackup(backup);
     setShowErrorModal(true);
+  };
+
+  const handleShowSuccess = (backup: Backup) => {
+    setSelectedBackup(backup);
+    setShowSuccessModal(true);
   };
 
   const handleRestore = (backup: Backup) => {
@@ -263,6 +269,13 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
                         )}
                         {backup.status === 'COMPLETED' && (
                           <>
+                            <button
+                              onClick={() => handleShowSuccess(backup)}
+                              className="text-green-600 hover:text-green-900"
+                              title="View backup details"
+                            >
+                              <CheckCircleIcon className="h-5 w-5" />
+                            </button>
                             <button
                               onClick={() => downloadMutation.mutate(backup.id)}
                               disabled={downloadMutation.isPending}
@@ -417,6 +430,141 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
             <button
               onClick={() => {
                 setShowErrorModal(false);
+                setSelectedBackup(null);
+              }}
+              className="btn-primary"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Success Details Modal */}
+      <Modal
+        isOpen={showSuccessModal}
+        onClose={() => {
+          setShowSuccessModal(false);
+          setSelectedBackup(null);
+        }}
+        title="Backup Details"
+        size="md"
+      >
+        <div className="space-y-5">
+          {/* Success Header */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+            <div className="flex items-center gap-3">
+              <div className="bg-green-600 p-3 rounded-lg">
+                <CheckCircleIcon className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-green-900">Backup Completed Successfully</h3>
+                <p className="text-sm text-green-700">Your database backup is ready</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Backup Information */}
+          <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Database</span>
+                <span className="text-sm font-semibold text-gray-900">{databaseName}</span>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Backup ID</span>
+                <span className="text-xs font-mono text-gray-700">{selectedBackup?.id}</span>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Created At</span>
+                <span className="text-sm text-gray-900">
+                  {selectedBackup && new Date(selectedBackup.createdAt).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Backup Size</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  {selectedBackup && selectedBackup.backupSizeMb > 0
+                    ? formatBytes(selectedBackup.backupSizeMb * 1024 * 1024)
+                    : 'N/A'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Duration</span>
+                <span className="text-sm text-gray-900">
+                  {selectedBackup && selectedBackup.backupDurationMs > 0
+                    ? formatDuration(selectedBackup.backupDurationMs)
+                    : 'N/A'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Encryption</span>
+                <span className={`text-sm font-semibold ${selectedBackup?.encryption === 'ENCRYPTED' ? 'text-green-700' : 'text-gray-500'}`}>
+                  {selectedBackup?.encryption === 'ENCRYPTED' ? (
+                    <span className="flex items-center gap-1">
+                      <LockClosedIcon className="h-4 w-4" />
+                      AES-256-GCM
+                    </span>
+                  ) : (
+                    'None'
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-blue-900 mb-3">Quick Actions</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  if (selectedBackup) {
+                    downloadMutation.mutate(selectedBackup.id);
+                  }
+                }}
+                disabled={downloadMutation.isPending}
+                className="btn-secondary text-sm disabled:opacity-50"
+              >
+                <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                Download Backup
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  if (selectedBackup) {
+                    handleRestore(selectedBackup);
+                  }
+                }}
+                className="btn-secondary text-sm"
+              >
+                <ArrowPathIcon className="h-4 w-4 mr-2" />
+                Restore to Database
+              </button>
+            </div>
+          </div>
+
+          {/* Close Button */}
+          <div className="flex justify-end pt-4 border-t border-gray-200">
+            <button
+              onClick={() => {
+                setShowSuccessModal(false);
                 setSelectedBackup(null);
               }}
               className="btn-primary"

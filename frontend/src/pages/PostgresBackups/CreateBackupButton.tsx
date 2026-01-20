@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlayIcon, ShieldCheckIcon, Cog6ToothIcon, CloudArrowUpIcon, ServerIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, ShieldCheckIcon, Cog6ToothIcon, CloudArrowUpIcon, ServerIcon, ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import Modal from '../../components/Modal';
@@ -30,6 +30,7 @@ export default function CreateBackupButton({
   objectStorageInstances = [],
 }: CreateBackupButtonProps) {
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [config, setConfig] = useState<BackupConfig>({
     encryption: true,
     compressionLevel: 5,
@@ -52,6 +53,7 @@ export default function CreateBackupButton({
     onSuccess: () => {
       toast.success('Backup started successfully');
       queryClient.invalidateQueries({ queryKey: ['postgres-backups', databaseId] });
+      setShowConfirmModal(false);
       setShowConfigModal(false);
     },
     onError: (error: any) => {
@@ -60,15 +62,43 @@ export default function CreateBackupButton({
   });
 
   const handleQuickBackup = () => {
-    createBackupMutation.mutate();
+    // Show confirmation modal with default config
+    setShowConfirmModal(true);
   };
 
   const handleConfiguredBackup = () => {
     setShowConfigModal(true);
   };
 
-  const handleStartBackup = () => {
+  const handleConfigureAndConfirm = () => {
+    setShowConfigModal(false);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmBackup = () => {
     createBackupMutation.mutate();
+  };
+
+  const handleEditFromConfirm = () => {
+    setShowConfirmModal(false);
+    setShowConfigModal(true);
+  };
+
+  const getDestinationName = () => {
+    switch (config.destinationType) {
+      case 'local':
+        return 'Local Download';
+      case 'vps':
+        const vps = vpsInstances?.find((v) => v.id.toString() === config.vpsInstanceId);
+        return vps ? `VPS: ${vps.name}` : 'VPS Server';
+      case 'object_storage':
+        const storage = objectStorageInstances?.find(
+          (s) => s.id.toString() === config.objectStorageInstanceId
+        );
+        return storage ? `S3: ${storage.name}` : 'Object Storage';
+      default:
+        return 'Unknown';
+    }
   };
 
   return (
@@ -361,22 +391,146 @@ export default function CreateBackupButton({
               Cancel
             </button>
             <button
-              onClick={handleStartBackup}
+              onClick={handleConfigureAndConfirm}
               disabled={createBackupMutation.isPending}
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {createBackupMutation.isPending ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Starting Backup...
-                </>
-              ) : (
-                <>
-                  <PlayIcon className="h-5 w-5 mr-2" />
-                  Start Backup
-                </>
-              )}
+              <CheckCircleIcon className="h-5 w-5 mr-2" />
+              Review & Confirm
             </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmation Modal */}
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        title="Confirm Backup Configuration"
+        size="md"
+      >
+        <div className="space-y-5">
+          {/* Summary Header */}
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <CheckCircleIcon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-blue-900">Ready to Create Backup</h3>
+                <p className="text-sm text-blue-700">Please review your configuration below</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Configuration Summary */}
+          <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+            {/* Database */}
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Database</span>
+                <span className="text-sm font-semibold text-gray-900">{databaseName}</span>
+              </div>
+            </div>
+
+            {/* Destination */}
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Destination</span>
+                <span className="text-sm font-semibold text-gray-900">{getDestinationName()}</span>
+              </div>
+              {config.destinationType === 'object_storage' && config.objectStorageBucket && (
+                <div className="mt-2 text-xs text-gray-500">
+                  Bucket: <span className="font-mono">{config.objectStorageBucket}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Encryption */}
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Encryption</span>
+                <span className={`text-sm font-semibold ${config.encryption ? 'text-green-700' : 'text-gray-500'}`}>
+                  {config.encryption ? (
+                    <span className="flex items-center gap-1">
+                      <ShieldCheckIcon className="h-4 w-4" />
+                      AES-256-GCM
+                    </span>
+                  ) : (
+                    'Disabled'
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Compression */}
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Compression Level</span>
+                <span className="text-sm font-semibold text-gray-900">
+                  Level {config.compressionLevel}
+                  <span className="text-xs text-gray-500 ml-2">
+                    ({config.compressionLevel === 0 ? 'None' : config.compressionLevel < 4 ? 'Fast' : config.compressionLevel < 7 ? 'Balanced' : 'Maximum'})
+                  </span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-100 p-2 rounded-lg">
+                <PlayIcon className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-blue-900 mb-1">What happens next?</h4>
+                <ul className="text-xs text-blue-800 space-y-1">
+                  <li>• Backup will start immediately in the background</li>
+                  <li>• You can monitor progress in real-time below</li>
+                  <li>• You'll be notified when the backup completes</li>
+                  <li>• The backup can be cancelled at any time</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-between gap-3 pt-4 border-t border-gray-200">
+            <button
+              onClick={handleEditFromConfirm}
+              className="btn-secondary"
+              disabled={createBackupMutation.isPending}
+            >
+              <Cog6ToothIcon className="h-5 w-5 mr-2" />
+              Edit Configuration
+            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="btn-secondary"
+                disabled={createBackupMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmBackup}
+                disabled={createBackupMutation.isPending}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {createBackupMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Starting Backup...
+                  </>
+                ) : (
+                  <>
+                    <PlayIcon className="h-5 w-5 mr-2" />
+                    Confirm & Start Backup
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
