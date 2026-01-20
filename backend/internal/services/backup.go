@@ -19,13 +19,13 @@ import (
 )
 
 type BackupService struct {
-	repo          repository.BackupRepository
+	repo          *repository.BackupRepository
 	instanceRepo  repository.InstanceRepository
 	rustfsService *RustFSService
 	auditService  *AuditService
 }
 
-func NewBackupService(repo repository.BackupRepository, instanceRepo repository.InstanceRepository, auditService *AuditService) *BackupService {
+func NewBackupService(repo *repository.BackupRepository, instanceRepo repository.InstanceRepository, auditService *AuditService) *BackupService {
 	return &BackupService{
 		repo:          repo,
 		instanceRepo:  instanceRepo,
@@ -184,7 +184,9 @@ func (s *BackupService) executeBackupToServer(job *models.BackupJob, run *models
 
 	// Test connection first by trying to list objects
 	ctx := context.Background()
-	objectCh := client.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
+	objectCh := client.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{
+		Recursive: true,
+	})
 
 	// Collect objects first to ensure connection works
 	var objects []minio.ObjectInfo
@@ -388,7 +390,9 @@ func (s *BackupService) executeCompressedBucketBackup(job *models.BackupJob, run
 	tarWriter := tar.NewWriter(writer)
 
 	// List and archive objects from source bucket
-	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
+	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{
+		Recursive: true,
+	})
 
 	var filesCount int64
 	var bytesCount int64
@@ -498,6 +502,7 @@ func (s *BackupService) executeCompressedBucketBackup(job *models.BackupJob, run
 	// Update backup job status
 	now := time.Now()
 	job.LastRun = &now
+
 	if len(errors) > 0 {
 		job.Status = "failed"
 		errorMsg := fmt.Sprintf("Completed with %d errors: %s", len(errors), errors[0])
@@ -513,6 +518,7 @@ func (s *BackupService) executeCompressedBucketBackup(job *models.BackupJob, run
 		}
 		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, fmt.Sprintf("%s/%s", job.DestinationBucket, destKey))
 	}
+
 	s.repo.UpdateJob(job)
 }
 
@@ -521,7 +527,9 @@ func (s *BackupService) executeUncompressedBucketBackup(job *models.BackupJob, r
 	ctx := context.Background()
 
 	// List objects from source bucket
-	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{Recursive: true})
+	objectCh := sourceClient.ListObjects(ctx, job.SourceBucket, minio.ListObjectsOptions{
+		Recursive: true,
+	})
 
 	var filesCount int64
 	var bytesCount int64
@@ -590,6 +598,7 @@ func (s *BackupService) executeUncompressedBucketBackup(job *models.BackupJob, r
 		}
 		s.updateBackupRun(run, "completed", "", filesCount, bytesCount, backupPath)
 	}
+
 	s.repo.UpdateJob(job)
 }
 
@@ -612,9 +621,11 @@ func (s *BackupService) updateBackupRun(run *models.BackupRun, status, errorMsg 
 			"files":      filesCount,
 			"size_bytes": bytesCount,
 		}
+
 		if errorMsg != "" {
 			details["error"] = errorMsg
 		}
+
 		if backupPath != "" {
 			details["backup_path"] = backupPath
 		}
@@ -630,6 +641,7 @@ func (s *BackupService) updateBackupJobStatus(jobID uint, status string) {
 	if err != nil {
 		return
 	}
+
 	job.Status = status
 	s.repo.UpdateJob(job)
 }
@@ -706,7 +718,6 @@ func (s *BackupService) RestoreBackup(instanceID uint, backupPath, targetBucket 
 func (s *BackupService) calculateNextRun(schedule string) (time.Time, error) {
 	// This is a simplified implementation
 	// In production, you'd use a proper cron parser like github.com/robfig/cron
-
 	// For now, just add 24 hours for daily backups
 	return time.Now().Add(24 * time.Hour), nil
 }
