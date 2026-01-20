@@ -1,5 +1,5 @@
 import React from 'react';
-import { CloudArrowUpIcon, CircleStackIcon, CloudIcon } from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, CircleStackIcon, CloudIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
 interface Tab {
   id: string;
@@ -27,6 +27,13 @@ const tabs: Tab[] = [
     name: 'PostgreSQL',
     icon: CircleStackIcon,
     description: 'Instant database backups',
+    premium: true,
+  },
+  {
+    id: 'advanced',
+    name: 'Advanced Backups',
+    icon: ShieldCheckIcon,
+    description: 'Advanced PostgreSQL backups with encryption & monitoring',
     premium: true,
   },
   {
