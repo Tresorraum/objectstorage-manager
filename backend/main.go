@@ -34,30 +34,32 @@ func main() {
 	postgresRepo := repository.NewPostgresRepository(db)
 	vpsRepo := repository.NewVPSRepository(db)
 
-	// Initialize services
-	rustfsService := services.NewRustFSService()
-	userService := services.NewUserService(userRepo)
-	auditService := services.NewAuditService(auditRepo)
-	backupService := services.NewBackupService(backupRepo, instanceRepo, auditService)
-	dashboardService := services.NewDashboardService(dashboardRepo)
-
 	// Get encryption key from environment or use default (should be in config in production)
 	encryptionKey := os.Getenv("ENCRYPTION_KEY")
 	if encryptionKey == "" {
 		encryptionKey = "default-encryption-key-change-in-production"
 		log.Println("WARNING: Using default encryption key. Set ENCRYPTION_KEY environment variable in production!")
 	}
+
+	// Initialize services
+	rustfsService := services.NewRustFSService()
+	userService := services.NewUserService(userRepo)
+	auditService := services.NewAuditService(auditRepo)
+	backupService := services.NewBackupService(backupRepo, instanceRepo, auditService)
+	dashboardService := services.NewDashboardService(dashboardRepo)
 	postgresService := services.NewPostgresService(postgresRepo, auditService, encryptionKey)
 	vpsService := services.NewVPSService(vpsRepo, auditService, encryptionKey)
+	postgresBackupService := services.NewPostgresBackupService(backupRepo, postgresRepo, vpsRepo, instanceRepo, encryptionKey)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	backupHandler := handlers.NewBackupHandler(backupService)
+	postgresBackupHandler := handlers.NewPostgresBackupHandlerNew(postgresBackupService)
 	rustfsHandler := handlers.NewRustFSHandler(rustfsService, instanceRepo)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	postgresHandler := handlers.NewPostgresHandler(postgresService)
-	postgresBackupHandler := handlers.NewPostgresBackupHandler(postgresService, vpsService)
+	postgresBackupHandlerOld := handlers.NewPostgresBackupHandler(postgresService, vpsService)
 	vpsHandler := handlers.NewVPSHandler(vpsService)
 
 	// Setup Gin router
@@ -113,7 +115,7 @@ func main() {
 				rustfs.GET("/instances/:id/users", rustfsHandler.ListUsers)
 			}
 
-			// Backup routes
+			// Backup routes (scheduled backups - old system)
 			backup := protected.Group("/backup")
 			{
 				backup.GET("/jobs", backupHandler.ListJobs)
@@ -123,6 +125,17 @@ func main() {
 				backup.DELETE("/jobs/:id", backupHandler.DeleteJob)
 				backup.POST("/jobs/:id/run", backupHandler.RunJob)
 				backup.POST("/restore", backupHandler.RestoreBackup)
+			}
+
+			// PostgreSQL backup routes (new system)
+			backups := protected.Group("/backups")
+			{
+				backups.POST("", postgresBackupHandler.CreateBackup)
+				backups.GET("", postgresBackupHandler.GetBackups)
+				backups.DELETE("/:id", postgresBackupHandler.DeleteBackup)
+				backups.POST("/:id/cancel", postgresBackupHandler.CancelBackup)
+				backups.POST("/:id/download-token", postgresBackupHandler.GenerateDownloadToken)
+				backups.GET("/:id/file", postgresBackupHandler.DownloadBackup)
 			}
 
 			// Audit routes
@@ -143,8 +156,8 @@ func main() {
 				postgres.DELETE("/instances/:id", postgresHandler.DeleteInstance)
 				postgres.POST("/instances/:id/test", postgresHandler.TestConnection)
 
-				// Backup route
-				postgres.POST("/backup", postgresBackupHandler.CreateBackup)
+				// Backup route (old postgres backup handler)
+				postgres.POST("/backup", postgresBackupHandlerOld.CreateBackup)
 			}
 
 			// VPS routes

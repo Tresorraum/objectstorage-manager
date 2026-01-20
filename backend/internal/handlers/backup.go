@@ -6,7 +6,6 @@ import (
 
 	"rustfs-manager/internal/dto"
 	"rustfs-manager/internal/models"
-	"rustfs-manager/internal/repository"
 	"rustfs-manager/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -14,11 +13,12 @@ import (
 
 type BackupHandler struct {
 	backupService *services.BackupService
-	backupRepo    repository.BackupRepository
 }
 
 func NewBackupHandler(backupService *services.BackupService) *BackupHandler {
-	return &BackupHandler{backupService: backupService}
+	return &BackupHandler{
+		backupService: backupService,
+	}
 }
 
 // ListJobs returns all backup jobs
@@ -75,10 +75,12 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "rustfs_instance_id is required for object_storage source"})
 		return
 	}
+
 	if req.SourceType == "postgres" && req.PostgresInstanceID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "postgres_instance_id is required for postgres source"})
 		return
 	}
+
 	if req.SourceType == "vps" && req.VPSInstanceID == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "vps_instance_id is required for vps source"})
 		return
@@ -101,6 +103,7 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "destination_instance_id is required for bucket backups"})
 			return
 		}
+
 		if req.DestinationBucket == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "destination_bucket is required for bucket backups"})
 			return
@@ -111,9 +114,11 @@ func (h *BackupHandler) CreateJob(c *gin.Context) {
 	if req.RetentionDays == 0 {
 		req.RetentionDays = 30
 	}
+
 	if req.CompressionType == "" {
 		req.CompressionType = "gzip"
 	}
+
 	// For bucket backups, default to compressed if not explicitly set
 	// Note: We can't distinguish between "not set" and "false" with bool,
 	// so we rely on the frontend always sending this field
@@ -259,7 +264,25 @@ func (h *BackupHandler) RestoreBackup(c *gin.Context) {
 		return
 	}
 
-	if err := h.backupService.RestoreBackup(req.InstanceID, req.BackupPath, req.TargetBucket); err != nil {
+	// For the old backup system, we need different fields
+	// This is a simplified version - you may need to adjust based on your needs
+	if req.SourceType != "existing_backup" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "old backup system only supports existing_backup source type"})
+		return
+	}
+
+	if req.BackupID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "backup_id is required"})
+		return
+	}
+
+	// For now, we'll use placeholder values
+	// TODO: Implement proper restore logic for old backup system
+	instanceID := req.TargetDatabaseID
+	backupPath := *req.BackupID
+	targetBucket := "restored"
+
+	if err := h.backupService.RestoreBackup(instanceID, backupPath, targetBucket); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.NewErrorResponse(dto.ErrInternalServer))
 		return
 	}
