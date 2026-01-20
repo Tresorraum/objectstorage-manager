@@ -6,6 +6,7 @@ import BackupTabs from './BackupTabs';
 import ScheduledBackupsTab from './ScheduledBackupsTab';
 import PostgresBackupTab from './PostgresBackupTab';
 import VPSBackupTab from './VPSBackupTab';
+import EnhancedPostgresBackups from '../PostgresBackups/EnhancedIndex';
 
 export default function Backups() {
   const { user } = useAuth();
@@ -61,6 +62,10 @@ export default function Backups() {
               vpsInstances={vpsInstances}
               isLoading={loadingPostgres}
             />
+          )}
+
+          {activeTab === 'advanced' && (
+            <EnhancedPostgresBackups />
           )}
 
           {activeTab === 'vps' && (
