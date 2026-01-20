@@ -133,7 +133,7 @@ export default function RestoreBackupModal({
     } else {
       const payload: any = {
         source_type: config.sourceType,
-        target_database_id: config.targetDatabaseId,
+        target_database_id: parseInt(config.targetDatabaseId),
         drop_existing: config.dropExisting,
         create_database: config.createDatabase,
         no_owner: config.noOwner,
@@ -143,11 +143,11 @@ export default function RestoreBackupModal({
       if (config.sourceType === 'existing_backup') {
         payload.backup_id = config.backupId;
       } else if (config.sourceType === 'object_storage') {
-        payload.object_storage_instance_id = config.objectStorageInstanceId;
+        payload.object_storage_instance_id = config.objectStorageInstanceId ? parseInt(config.objectStorageInstanceId) : undefined;
         payload.object_storage_bucket = config.objectStorageBucket;
         payload.object_storage_key = config.objectStorageKey;
       } else if (config.sourceType === 'vps') {
-        payload.vps_instance_id = config.vpsInstanceId;
+        payload.vps_instance_id = config.vpsInstanceId ? parseInt(config.vpsInstanceId) : undefined;
         payload.vps_file_path = config.vpsFilePath;
       }
 

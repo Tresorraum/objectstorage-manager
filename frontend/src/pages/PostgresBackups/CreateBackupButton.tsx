@@ -41,10 +41,10 @@ export default function CreateBackupButton({
   const createBackupMutation = useMutation({
     mutationFn: () =>
       api.post('/backups', {
-        database_id: databaseId,
+        database_id: parseInt(databaseId),
         destination_type: config.destinationType,
-        vps_instance_id: config.vpsInstanceId,
-        object_storage_instance_id: config.objectStorageInstanceId,
+        vps_instance_id: config.vpsInstanceId ? parseInt(config.vpsInstanceId) : undefined,
+        object_storage_instance_id: config.objectStorageInstanceId ? parseInt(config.objectStorageInstanceId) : undefined,
         object_storage_bucket: config.objectStorageBucket,
         encryption: config.encryption,
         compression_level: config.compressionLevel,

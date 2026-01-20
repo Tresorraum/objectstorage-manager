@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS backups (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     database_id INTEGER NOT NULL REFERENCES postgres_instances(id) ON DELETE CASCADE,
-    storage_id INTEGER REFERENCES rustfs_instances(id) ON DELETE SET NULL,
+    storage_id INTEGER REFERENCES rust_fs_instances(id) ON DELETE SET NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'IN_PROGRESS',
     fail_message TEXT,
     backup_size_mb DECIMAL(10,2) DEFAULT 0,
