@@ -6,12 +6,14 @@ import {
   ArrowPathIcon,
   CheckCircleIcon,
   XCircleIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
 import { api } from '../../services/api';
 import DatabaseSelector from './DatabaseSelector';
 import CreateBackupButton from './CreateBackupButton';
 import BackupsList from './BackupsList';
 import BackupProgress from './BackupProgress';
+import RestoreBackupModal from './RestoreBackupModal';
 
 interface Backup {
   id: string;
@@ -24,6 +26,19 @@ interface Backup {
 export default function EnhancedPostgresBackups() {
   const [selectedDatabaseId, setSelectedDatabaseId] = useState<string | null>(null);
   const [selectedDatabaseName, setSelectedDatabaseName] = useState<string>('');
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+
+  // Fetch VPS instances
+  const { data: vpsInstances } = useQuery({
+    queryKey: ['vps-instances'],
+    queryFn: () => api.get('/vps/instances').then((res) => res.data),
+  });
+
+  // Fetch object storage instances
+  const { data: objectStorageInstances } = useQuery({
+    queryKey: ['object-storage-instances'],
+    queryFn: () => api.get('/rustfs/instances').then((res) => res.data),
+  });
 
   // Fetch backups for selected database to check for in-progress backups
   const { data: backupsData } = useQuery({
@@ -112,11 +127,22 @@ export default function EnhancedPostgresBackups() {
                   Manage backups for this database
                 </p>
               </div>
-              <CreateBackupButton
-                databaseId={selectedDatabaseId}
-                databaseName={selectedDatabaseName}
-                disabled={!!inProgressBackup}
-              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowRestoreModal(true)}
+                  className="btn-secondary"
+                >
+                  <ArrowPathIcon className="h-5 w-5 mr-2" />
+                  Restore
+                </button>
+                <CreateBackupButton
+                  databaseId={selectedDatabaseId}
+                  databaseName={selectedDatabaseName}
+                  disabled={!!inProgressBackup}
+                  vpsInstances={vpsInstances}
+                  objectStorageInstances={objectStorageInstances}
+                />
+              </div>
             </div>
 
             {/* In-Progress Warning */}
@@ -140,6 +166,12 @@ export default function EnhancedPostgresBackups() {
           />
         </div>
       )}
+
+      {/* Standalone Restore Modal */}
+      <RestoreBackupModal
+        isOpen={showRestoreModal}
+        onClose={() => setShowRestoreModal(false)}
+      />
 
       {/* Technical Details */}
       {selectedDatabaseId && (
