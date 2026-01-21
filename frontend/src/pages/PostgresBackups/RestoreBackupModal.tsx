@@ -92,7 +92,7 @@ export default function RestoreBackupModal({
       return api.post('/backups/restore', data);
     },
     onSuccess: () => {
-      toast.success('Database restore started successfully');
+      toast.success('Database restored successfully');
       queryClient.invalidateQueries({ queryKey: ['postgres-backups'] });
       onClose();
     },
