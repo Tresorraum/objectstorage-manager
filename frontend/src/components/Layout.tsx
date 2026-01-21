@@ -19,7 +19,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: HomeIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
   { name: 'Instances', href: '/instances', icon: ServerIcon },
   { name: 'Backups', href: '/backups', icon: CloudArrowUpIcon },
   { name: 'Analytics', href: '/analytics', icon: ChartBarIcon, premium: true },

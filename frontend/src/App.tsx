@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -46,12 +47,16 @@ function AppRoutes() {
   return (
     <Routes>
       <Route 
+        path="/" 
+        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Landing />} 
+      />
+      <Route 
         path="/login" 
-        element={isAuthenticated ? <Navigate to="/" /> : <Login />} 
+        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} 
       />
       <Route 
         path="/register" 
-        element={isAuthenticated ? <Navigate to="/" /> : <Register />} 
+        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} 
       />
       <Route
         path="/*"
@@ -59,7 +64,7 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Routes>
-                <Route path="/" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/instances" element={<Instances />} />
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/analytics" element={<Analytics />} />
