@@ -104,7 +104,7 @@ export default function Landing() {
                 <CloudArrowUpIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Storage Manager
+                Rückhalt
               </span>
             </Link>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -423,7 +423,7 @@ export default function Landing() {
             Ready to Secure Your Data?
           </h2>
           <p className="text-base sm:text-xl text-blue-100 mb-6 sm:mb-10 px-4">
-            Join teams who trust Storage Manager for their backup needs
+            Join teams who trust Rückhalt for their backup needs
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4">
             <Link
@@ -452,7 +452,7 @@ export default function Landing() {
                 <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-1.5 sm:p-2 rounded-lg">
                   <CloudArrowUpIcon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 </div>
-                <span className="text-white font-bold text-sm sm:text-base">Storage Manager</span>
+                <span className="text-white font-bold text-sm sm:text-base">Rückhalt</span>
               </div>
               <p className="text-xs sm:text-sm">
                 Self-hosted backup solution for modern teams
@@ -488,7 +488,16 @@ export default function Landing() {
           </div>
           
           <div className="border-t border-gray-800 pt-6 sm:pt-8 text-center text-xs sm:text-sm">
-            <p>&copy; 2026 Storage Manager. All rights reserved.</p>
+            <p>
+              Powered by{' '}
+              <a href="https://zendevz.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">
+                ZenDevz
+              </a>
+              {' '}• Built in{' '}
+              <a href="https://nesohq.org" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">
+                NesoHQ
+              </a>
+            </p>
           </div>
         </div>
       </footer>
