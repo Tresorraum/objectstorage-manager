@@ -58,7 +58,7 @@ export default function Layout({ children }: LayoutProps) {
           {/* Logo */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
-              Storage Manager
+              Rückhalt
             </h1>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -131,7 +131,7 @@ export default function Layout({ children }: LayoutProps) {
           {/* Logo */}
           <div className="flex items-center px-6 py-6 border-b border-gray-200">
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
-              Storage Manager
+              Rückhalt
             </h1>
           </div>
 
@@ -203,7 +203,7 @@ export default function Layout({ children }: LayoutProps) {
               <Bars3Icon className="h-6 w-6" />
             </button>
             <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-indigo-700 bg-clip-text text-transparent">
-              Storage Manager
+              Rückhalt
             </h1>
             <div className="w-10" /> {/* Spacer for centering */}
           </div>
@@ -228,6 +228,15 @@ export default function Layout({ children }: LayoutProps) {
                 className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors duration-200"
               >
                 ZenDevz
+              </a>
+              {' '}• Built in{' '}
+              <a
+                href="https://nesohq.org"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors duration-200"
+              >
+                NesoHQ
               </a>
             </p>
           </div>

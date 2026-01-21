@@ -33,7 +33,7 @@ export default function Login() {
         <div>
           <div className="flex items-center gap-3 text-white">
             <ServerIcon className="h-10 w-10" />
-            <span className="text-2xl font-bold">Storage Manager</span>
+            <span className="text-2xl font-bold">Rückhalt</span>
           </div>
         </div>
         
@@ -82,7 +82,7 @@ export default function Login() {
         </div>
 
         <div className="text-indigo-200 text-sm">
-          © 2026 ZenDevz. All rights reserved.
+          Powered by <a href="https://zendevz.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">ZenDevz</a> • Built in <a href="https://nesohq.org" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">NesoHQ</a>
         </div>
       </div>
 
@@ -92,7 +92,7 @@ export default function Login() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
             <ServerIcon className="h-8 w-8 text-indigo-600" />
-            <span className="text-xl font-bold text-gray-900">Storage Manager</span>
+            <span className="text-xl font-bold text-gray-900">Rückhalt</span>
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-8">
