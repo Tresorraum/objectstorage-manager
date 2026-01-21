@@ -1,7 +1,6 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
-  ShieldCheckIcon,
   CloudArrowUpIcon,
   ServerIcon,
   ClockIcon,
@@ -11,197 +10,258 @@ import {
   BoltIcon,
   CheckCircleIcon,
   ArrowRightIcon,
+  UserGroupIcon,
+  BuildingOfficeIcon,
+  RocketLaunchIcon,
+  SparklesIcon,
+  CubeTransparentIcon,
+  CommandLineIcon,
 } from '@heroicons/react/24/outline';
 
 export default function Landing() {
+  const { isAuthenticated } = useAuth();
+
   const features = [
     {
       icon: CloudArrowUpIcon,
       title: 'S3-Compatible Storage',
-      description: 'Connect to any S3-compatible storage including RustFS, MinIO, and AWS S3',
-      color: 'blue',
+      description: 'Connect to any S3-compatible storage including RustFS, MinIO, and AWS S3 with seamless integration',
+      color: 'from-blue-500 to-cyan-500',
+      bgColor: 'bg-blue-50',
+      iconColor: 'text-blue-600',
     },
     {
       icon: ServerIcon,
       title: 'PostgreSQL Backups',
-      description: 'Instant PostgreSQL backups with pg_dump, compression, and multiple destinations',
-      color: 'purple',
+      description: 'Instant PostgreSQL backups with pg_dump, intelligent compression, and multiple destination support',
+      color: 'from-purple-500 to-pink-500',
+      bgColor: 'bg-purple-50',
+      iconColor: 'text-purple-600',
     },
     {
       icon: ArrowPathIcon,
-      title: 'Easy Restore',
-      description: 'One-click restore from S3, VPS, or local files with full configuration control',
-      color: 'green',
+      title: 'One-Click Restore',
+      description: 'Effortless database restoration from S3, VPS, or local files with full configuration control',
+      color: 'from-green-500 to-emerald-500',
+      bgColor: 'bg-green-50',
+      iconColor: 'text-green-600',
     },
     {
       icon: ClockIcon,
-      title: 'Scheduled Backups',
-      description: 'Automate your backup workflow with cron-based scheduling',
-      color: 'orange',
+      title: 'Automated Scheduling',
+      description: 'Set up cron-based backup schedules and never worry about manual backups again',
+      color: 'from-orange-500 to-red-500',
+      bgColor: 'bg-orange-50',
+      iconColor: 'text-orange-600',
     },
     {
       icon: ChartBarIcon,
-      title: 'Analytics & Monitoring',
-      description: 'Track storage usage, backup history, and system health in real-time',
-      color: 'indigo',
+      title: 'Real-Time Analytics',
+      description: 'Monitor storage usage, backup history, and system health with comprehensive dashboards',
+      color: 'from-indigo-500 to-purple-500',
+      bgColor: 'bg-indigo-50',
+      iconColor: 'text-indigo-600',
     },
     {
       icon: LockClosedIcon,
-      title: 'Secure & Private',
-      description: 'Your data stays yours. Self-hosted solution with encrypted connections',
-      color: 'red',
+      title: 'Enterprise Security',
+      description: 'Self-hosted solution with encrypted connections ensuring your data stays completely private',
+      color: 'from-red-500 to-pink-500',
+      bgColor: 'bg-red-50',
+      iconColor: 'text-red-600',
     },
   ];
 
   const useCases = [
     {
       title: 'Development Teams',
-      description: 'Manage staging and production database backups across multiple environments',
-      icon: '👥',
+      description: 'Manage staging and production database backups across multiple environments with ease',
+      icon: UserGroupIcon,
+      gradient: 'from-blue-600 to-cyan-600',
     },
     {
       title: 'SaaS Companies',
-      description: 'Automated backup workflows for customer databases with compliance tracking',
-      icon: '🚀',
+      description: 'Automated backup workflows for customer databases with built-in compliance tracking',
+      icon: RocketLaunchIcon,
+      gradient: 'from-purple-600 to-pink-600',
     },
     {
-      title: 'Agencies',
-      description: 'Centralized backup management for all client projects in one dashboard',
-      icon: '🏢',
+      title: 'Digital Agencies',
+      description: 'Centralized backup management for all client projects in one unified dashboard',
+      icon: BuildingOfficeIcon,
+      gradient: 'from-green-600 to-emerald-600',
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
+      <nav className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-b border-gray-100 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-lg">
+            <Link to="/" className="flex items-center gap-3 group">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2.5 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105">
                 <CloudArrowUpIcon className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 Storage Manager
               </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link
-                to="/login"
-                className="text-gray-700 hover:text-gray-900 font-medium transition-colors"
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/register"
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all duration-200 hover:scale-105"
-              >
-                Get Started
-              </Link>
+            </Link>
+            <div className="flex items-center gap-3">
+              {isAuthenticated ? (
+                <Link
+                  to="/dashboard"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+                >
+                  <SparklesIcon className="h-5 w-5" />
+                  Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/login"
+                    className="text-gray-700 hover:text-gray-900 font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105"
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-16">
-        <div className="text-center">
-          <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-8">
-            <BoltIcon className="h-4 w-4" />
-            <span>Self-Hosted Backup Solution</span>
-          </div>
-          
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-            Backup & Restore
-            <br />
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              Made Simple
-            </span>
-          </h1>
-          
-          <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Manage PostgreSQL backups, S3 storage, and VPS servers from one powerful dashboard.
-            Automated scheduling, instant restores, and complete control over your data.
-          </p>
+      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        {/* Background decoration */}
+        <div className="absolute inset-0 -z-10">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+          <div className="absolute top-0 right-1/4 w-96 h-96 bg-purple-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-indigo-100 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
+        </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Link
-              to="/register"
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-2xl transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2"
-            >
-              Start Free Trial
-              <ArrowRightIcon className="h-5 w-5" />
-            </Link>
-            <a
-              href="#features"
-              className="w-full sm:w-auto bg-white text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg border-2 border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-lg"
-            >
-              Learn More
-            </a>
-          </div>
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 px-4 py-2 rounded-full text-sm font-semibold text-blue-700 mb-8 shadow-sm">
+              <BoltIcon className="h-4 w-4" />
+              <span>Self-Hosted • Open Source • Production Ready</span>
+            </div>
+            
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900 mb-6 leading-tight tracking-tight">
+              Database Backups
+              <br />
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Simplified & Automated
+              </span>
+            </h1>
+            
+            <p className="text-xl sm:text-2xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed font-light">
+              Enterprise-grade backup management for PostgreSQL databases and S3 storage.
+              <br className="hidden sm:block" />
+              Schedule, monitor, and restore with confidence.
+            </p>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="text-3xl font-bold text-blue-600 mb-1">100%</div>
-              <div className="text-sm text-gray-600">Open Source</div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+              <Link
+                to="/register"
+                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 group"
+              >
+                Start Free Trial
+                <ArrowRightIcon className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <a
+                href="#features"
+                className="w-full sm:w-auto bg-white text-gray-700 px-8 py-4 rounded-xl font-semibold text-lg border-2 border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-lg"
+              >
+                Explore Features
+              </a>
             </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="text-3xl font-bold text-indigo-600 mb-1">3+</div>
-              <div className="text-sm text-gray-600">Storage Types</div>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="text-3xl font-bold text-purple-600 mb-1">∞</div>
-              <div className="text-sm text-gray-600">Databases</div>
-            </div>
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-              <div className="text-3xl font-bold text-green-600 mb-1">24/7</div>
-              <div className="text-sm text-gray-600">Automated</div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+              {[
+                { value: '100%', label: 'Open Source', icon: CubeTransparentIcon },
+                { value: '3+', label: 'Storage Types', icon: ServerIcon },
+                { value: '∞', label: 'Databases', icon: CommandLineIcon },
+                { value: '24/7', label: 'Automated', icon: ClockIcon },
+              ].map((stat, index) => (
+                <div key={index} className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <stat.icon className="h-8 w-8 text-blue-600 mx-auto mb-3" />
+                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-1">
+                    {stat.value}
+                  </div>
+                  <div className="text-sm text-gray-600 font-medium">{stat.label}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            Everything You Need
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Powerful features designed for modern backup workflows
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
-            >
-              <div className={`bg-${feature.color}-100 w-14 h-14 rounded-xl flex items-center justify-center mb-6`}>
-                <feature.icon className={`h-7 w-7 text-${feature.color}-600`} />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-gray-600 leading-relaxed">
-                {feature.description}
-              </p>
+      <section id="features" className="py-24 bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 px-4 py-2 rounded-full text-sm font-semibold text-blue-700 mb-6">
+              <SparklesIcon className="h-4 w-4" />
+              <span>Powerful Features</span>
             </div>
-          ))}
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+              Everything You Need to
+              <br />
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Protect Your Data
+              </span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Enterprise-grade features designed for modern backup workflows
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="group bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-2"
+              >
+                <div className={`${feature.bgColor} w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                  <feature.icon className={`h-8 w-8 ${feature.iconColor}`} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-4">
+                  {feature.title}
+                </h3>
+                <p className="text-gray-600 leading-relaxed">
+                  {feature.description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Use Cases Section */}
-      <section className="bg-white py-20">
+      <section className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Built For Teams Like Yours
+          <div className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-100 px-4 py-2 rounded-full text-sm font-semibold text-purple-700 mb-6">
+              <UserGroupIcon className="h-4 w-4" />
+              <span>Trusted By Teams</span>
+            </div>
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+              Built For Teams
+              <br />
+              <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Like Yours
+              </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Trusted by development teams, agencies, and SaaS companies
+              Trusted by development teams, agencies, and SaaS companies worldwide
             </p>
           </div>
 
@@ -209,13 +269,16 @@ export default function Landing() {
             {useCases.map((useCase, index) => (
               <div
                 key={index}
-                className="bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-8 border border-gray-200"
+                className="group relative bg-white rounded-3xl p-8 border-2 border-gray-100 hover:border-transparent hover:shadow-2xl transition-all duration-300 overflow-hidden"
               >
-                <div className="text-5xl mb-4">{useCase.icon}</div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-3">
+                <div className={`absolute inset-0 bg-gradient-to-br ${useCase.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
+                <div className={`relative bg-gradient-to-br ${useCase.gradient} w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-lg`}>
+                  <useCase.icon className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4 relative">
                   {useCase.title}
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-gray-600 leading-relaxed relative">
                   {useCase.description}
                 </p>
               </div>
@@ -225,51 +288,64 @@ export default function Landing() {
       </section>
 
       {/* How It Works */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            Get Started in Minutes
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Simple setup, powerful results
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
-              1
+      <section className="py-24 bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-20">
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 px-4 py-2 rounded-full text-sm font-semibold text-green-700 mb-6">
+              <CheckCircleIcon className="h-4 w-4" />
+              <span>Simple Setup</span>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">
-              Connect Your Storage
-            </h3>
-            <p className="text-gray-600">
-              Add your S3, PostgreSQL, or VPS instances in seconds
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+              Get Started in
+              <br />
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                Three Easy Steps
+              </span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Simple setup process, powerful results
             </p>
           </div>
 
-          <div className="text-center">
-            <div className="bg-gradient-to-br from-purple-600 to-pink-600 w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
-              2
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">
-              Create Backup Jobs
-            </h3>
-            <p className="text-gray-600">
-              Schedule automated backups or run them instantly
-            </p>
-          </div>
-
-          <div className="text-center">
-            <div className="bg-gradient-to-br from-green-600 to-emerald-600 w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold mx-auto mb-6">
-              3
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">
-              Monitor & Restore
-            </h3>
-            <p className="text-gray-600">
-              Track everything and restore with one click when needed
-            </p>
+          <div className="grid md:grid-cols-3 gap-12">
+            {[
+              {
+                step: '01',
+                title: 'Connect Your Storage',
+                description: 'Add your S3, PostgreSQL, or VPS instances in seconds with our intuitive interface',
+                icon: CloudArrowUpIcon,
+                gradient: 'from-blue-600 to-cyan-600',
+              },
+              {
+                step: '02',
+                title: 'Create Backup Jobs',
+                description: 'Schedule automated backups or run them instantly with customizable configurations',
+                icon: ClockIcon,
+                gradient: 'from-purple-600 to-pink-600',
+              },
+              {
+                step: '03',
+                title: 'Monitor & Restore',
+                description: 'Track everything in real-time and restore with one click whenever you need',
+                icon: ChartBarIcon,
+                gradient: 'from-green-600 to-emerald-600',
+              },
+            ].map((item, index) => (
+              <div key={index} className="text-center group">
+                <div className={`relative inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br ${item.gradient} shadow-xl mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                  <item.icon className="h-10 w-10 text-white" />
+                  <div className="absolute -top-3 -right-3 bg-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg border-2 border-gray-100">
+                    <span className="text-sm font-bold text-gray-900">{item.step}</span>
+                  </div>
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                  {item.title}
+                </h3>
+                <p className="text-gray-600 leading-relaxed">
+                  {item.description}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
