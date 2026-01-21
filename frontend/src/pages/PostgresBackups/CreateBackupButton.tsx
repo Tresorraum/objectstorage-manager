@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { PlayIcon, ShieldCheckIcon, Cog6ToothIcon, CloudArrowUpIcon, ServerIcon, ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { PlayIcon, Cog6ToothIcon, CloudArrowUpIcon, ServerIcon, ArrowDownTrayIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { api } from '../../services/api';
 import Modal from '../../components/Modal';
@@ -14,7 +14,6 @@ interface CreateBackupButtonProps {
 }
 
 interface BackupConfig {
-  encryption: boolean;
   compressionLevel: number;
   destinationType: 'local' | 'vps' | 'object_storage';
   vpsInstanceId?: string;
@@ -32,7 +31,6 @@ export default function CreateBackupButton({
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [config, setConfig] = useState<BackupConfig>({
-    encryption: true,
     compressionLevel: 5,
     destinationType: 'object_storage',
   });
@@ -47,7 +45,6 @@ export default function CreateBackupButton({
         vps_instance_id: config.vpsInstanceId ? parseInt(config.vpsInstanceId) : undefined,
         object_storage_instance_id: config.objectStorageInstanceId ? parseInt(config.objectStorageInstanceId) : undefined,
         object_storage_bucket: config.objectStorageBucket,
-        encryption: config.encryption,
         compression_level: config.compressionLevel,
       }),
     onSuccess: () => {
@@ -146,30 +143,6 @@ export default function CreateBackupButton({
           <div className="bg-blue-50 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-blue-900 mb-2">Database</h3>
             <p className="text-sm text-blue-800">{databaseName}</p>
-          </div>
-
-          {/* Encryption Option */}
-          <div className="space-y-3">
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.encryption}
-                onChange={(e) => setConfig({ ...config, encryption: e.target.checked })}
-                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <ShieldCheckIcon className="h-5 w-5 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-900">
-                    Enable Encryption
-                  </span>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Encrypt backup data at rest using AES-256-GCM encryption. Recommended for
-                  sensitive data.
-                </p>
-              </div>
-            </label>
           </div>
 
           {/* Backup Destination */}
@@ -355,7 +328,7 @@ export default function CreateBackupButton({
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-green-600 mt-0.5">✓</span>
-                <span>Supports zstd compression for PostgreSQL 16+ (gzip for older versions)</span>
+                <span>Supports gzip compression for efficient storage</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-green-600 mt-0.5">✓</span>
@@ -444,23 +417,6 @@ export default function CreateBackupButton({
                   Bucket: <span className="font-mono">{config.objectStorageBucket}</span>
                 </div>
               )}
-            </div>
-
-            {/* Encryption */}
-            <div className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Encryption</span>
-                <span className={`text-sm font-semibold ${config.encryption ? 'text-green-700' : 'text-gray-500'}`}>
-                  {config.encryption ? (
-                    <span className="flex items-center gap-1">
-                      <ShieldCheckIcon className="h-4 w-4" />
-                      AES-256-GCM
-                    </span>
-                  ) : (
-                    'Disabled'
-                  )}
-                </span>
-              </div>
             </div>
 
             {/* Compression */}

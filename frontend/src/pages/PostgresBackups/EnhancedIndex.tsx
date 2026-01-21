@@ -75,10 +75,10 @@ export default function EnhancedPostgresBackups() {
             <div className="bg-blue-600 p-3 rounded-lg">
               <ShieldCheckIcon className="h-6 w-6 text-white" />
             </div>
-            <h3 className="text-lg font-semibold text-blue-900">Encrypted</h3>
+            <h3 className="text-lg font-semibold text-blue-900">Reliable</h3>
           </div>
           <p className="text-sm text-blue-800">
-            AES-256-GCM encryption for secure backup storage
+            Professional-grade backup with pg_dump custom format
           </p>
         </div>
 
@@ -206,19 +206,15 @@ export default function EnhancedPostgresBackups() {
               <ul className="text-sm text-gray-600 space-y-2">
                 <li className="flex items-start gap-2">
                   <CheckCircleIcon className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span>AES-256-GCM encryption at rest</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircleIcon className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span>Unique encryption keys per backup</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircleIcon className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
                   <span>Token-based download authentication</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircleIcon className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span>Automatic decryption during download</span>
+                  <span>Secure storage with access control</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircleIcon className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <span>Multiple destination options</span>
                 </li>
               </ul>
             </div>

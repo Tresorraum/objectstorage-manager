@@ -3,7 +3,7 @@
 # Development - build and run locally
 dev-build:
 	@echo "Building for local development..."
-	docker compose build
+	docker compose build --no-cache
 
 dev:
 	@echo "Starting local development..."

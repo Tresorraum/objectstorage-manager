@@ -68,9 +68,26 @@ services:
     networks:
       - rustfs-manager
 
+  # Test PostgreSQL instance for restore testing
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: rustfs-manager-test-db
+    restart: unless-stopped
+    ports:
+        - "5000:5432"
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass123
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - rustfs-manager
+
 volumes:
   postgres_data:
   redis_data:
+  postgres_test_data:
 
 networks:
   rustfs-manager:

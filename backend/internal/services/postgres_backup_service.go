@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"rustfs-manager/internal/dto"
@@ -70,17 +71,6 @@ func (s *PostgresBackupService) CreateBackup(userID uint, req dto.CreateBackupRe
 		Encryption:      models.BackupEncryptionNone,
 	}
 
-	if req.Encryption {
-		backup.Encryption = models.BackupEncryptionEncrypted
-		// Generate salt and IV
-		salt, iv, err := s.generateEncryptionMetadata()
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate encryption metadata: %w", err)
-		}
-		backup.EncryptionSalt = &salt
-		backup.EncryptionIV = &iv
-	}
-
 	if err := s.backupRepo.Create(backup); err != nil {
 		return nil, fmt.Errorf("failed to create backup record: %w", err)
 	}
@@ -105,6 +95,7 @@ func (s *PostgresBackupService) executeBackup(backup *models.Backup, pgInstance 
 	// Create backup based on destination type
 	var backupPath string
 	var backupSize int64
+	var storageID *uint
 
 	switch req.DestinationType {
 	case "local":
@@ -112,8 +103,14 @@ func (s *PostgresBackupService) executeBackup(backup *models.Backup, pgInstance 
 		backupPath, backupSize, err = s.createLocalBackup(pgInstance, password, req.CompressionLevel)
 	case "vps":
 		backupPath, backupSize, err = s.createVPSBackup(pgInstance, password, req.VPSInstanceID, req.CompressionLevel)
+		if req.VPSInstanceID != nil {
+			storageID = req.VPSInstanceID
+		}
 	case "object_storage":
 		backupPath, backupSize, err = s.createObjectStorageBackup(pgInstance, password, req.ObjectStorageInstanceID, req.ObjectStorageBucket, req.CompressionLevel)
+		if req.ObjectStorageInstanceID != nil {
+			storageID = req.ObjectStorageInstanceID
+		}
 	default:
 		err = fmt.Errorf("unsupported destination type: %s", req.DestinationType)
 	}
@@ -129,6 +126,7 @@ func (s *PostgresBackupService) executeBackup(backup *models.Backup, pgInstance 
 	backup.BackupSizeMb = float64(backupSize) / (1024 * 1024)
 	backup.BackupDurationMs = duration
 	backup.DestinationPath = &backupPath
+	backup.StorageID = storageID
 
 	if err := s.backupRepo.Update(backup); err != nil {
 		fmt.Printf("Failed to update backup record: %v\n", err)
@@ -419,9 +417,6 @@ func (s *PostgresBackupService) toBackupResponse(backup *models.Backup) dto.Back
 		FailMessage:      backup.FailMessage,
 		BackupSizeMb:     backup.BackupSizeMb,
 		BackupDurationMs: backup.BackupDurationMs,
-		Encryption:       string(backup.Encryption),
-		EncryptionSalt:   backup.EncryptionSalt,
-		EncryptionIV:     backup.EncryptionIV,
 		CreatedAt:        backup.CreatedAt.Format(time.RFC3339),
 	}
 
@@ -509,4 +504,239 @@ func (s *PostgresBackupService) decrypt(ciphertext string) (string, error) {
 	}
 
 	return string(plaintext), nil
+}
+
+// RestoreBackup restores a backup to a target database
+func (s *PostgresBackupService) RestoreBackup(userID uint, req dto.RestoreBackupRequest) error {
+	// Get target database
+	targetDB, err := s.postgresRepo.GetByID(req.TargetDatabaseID)
+	if err != nil {
+		return fmt.Errorf("target database not found: %w", err)
+	}
+
+	// Verify ownership
+	if targetDB.UserID != userID {
+		return fmt.Errorf("unauthorized access to target database")
+	}
+
+	// Decrypt password
+	password, err := s.decrypt(targetDB.Password)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
+	// Get backup file based on source type
+	var backupFilePath string
+	var cleanupFile bool
+
+	switch req.SourceType {
+	case "existing_backup":
+		if req.BackupID == nil {
+			return fmt.Errorf("backup_id is required for existing_backup source")
+		}
+		backupID, err := uuid.Parse(*req.BackupID)
+		if err != nil {
+			return fmt.Errorf("invalid backup_id: %w", err)
+		}
+		backup, err := s.backupRepo.FindByID(backupID)
+		if err != nil {
+			return fmt.Errorf("backup not found: %w", err)
+		}
+		if backup.UserID != userID {
+			return fmt.Errorf("unauthorized access to backup")
+		}
+		if backup.DestinationPath == nil {
+			return fmt.Errorf("backup file path not found")
+		}
+
+		// Check if backup is in object storage (S3)
+		if strings.HasPrefix(*backup.DestinationPath, "s3://") {
+			// Parse S3 path: s3://bucket/key
+			s3Path := strings.TrimPrefix(*backup.DestinationPath, "s3://")
+			parts := strings.SplitN(s3Path, "/", 2)
+			if len(parts) != 2 {
+				return fmt.Errorf("invalid S3 path format: %s", *backup.DestinationPath)
+			}
+			bucket := parts[0]
+			key := parts[1]
+
+			// Download from object storage using the backup's storage ID
+			if backup.StorageID == nil {
+				return fmt.Errorf("backup storage ID not found")
+			}
+			tempFile, err := s.downloadFromObjectStorage(*backup.StorageID, bucket, key)
+			if err != nil {
+				return fmt.Errorf("failed to download from object storage: %w", err)
+			}
+			backupFilePath = tempFile
+			cleanupFile = true
+		} else {
+			// Local file
+			backupFilePath = *backup.DestinationPath
+			cleanupFile = false
+		}
+
+	case "object_storage":
+		if req.ObjectStorageInstanceID == nil {
+			return fmt.Errorf("object_storage_instance_id is required")
+		}
+		// Download from object storage
+		tempFile, err := s.downloadFromObjectStorage(*req.ObjectStorageInstanceID, req.ObjectStorageBucket, req.ObjectStorageKey)
+		if err != nil {
+			return fmt.Errorf("failed to download from object storage: %w", err)
+		}
+		backupFilePath = tempFile
+		cleanupFile = true
+
+	case "vps":
+		if req.VPSInstanceID == nil {
+			return fmt.Errorf("vps_instance_id is required")
+		}
+		// Download from VPS
+		tempFile, err := s.downloadFromVPS(*req.VPSInstanceID, req.VPSFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to download from VPS: %w", err)
+		}
+		backupFilePath = tempFile
+		cleanupFile = true
+
+	case "local_file":
+		return fmt.Errorf("local_file restore not yet implemented")
+
+	default:
+		return fmt.Errorf("unsupported source type: %s", req.SourceType)
+	}
+
+	// Cleanup temp file if needed
+	if cleanupFile {
+		defer os.Remove(backupFilePath)
+	}
+
+	// Execute pg_restore
+	if err := s.executePgRestore(targetDB, password, backupFilePath, req); err != nil {
+		return fmt.Errorf("restore failed: %w", err)
+	}
+
+	return nil
+}
+
+// executePgRestore executes pg_restore command
+func (s *PostgresBackupService) executePgRestore(pgInstance *models.PostgresInstance, password, backupPath string, req dto.RestoreBackupRequest) error {
+	// Build pg_restore command
+	args := []string{
+		"--no-password",
+		"-h", pgInstance.Host,
+		"-p", strconv.Itoa(pgInstance.Port),
+		"-U", pgInstance.Username,
+		"-d", pgInstance.Database,
+	}
+
+	// Add optional flags
+	if req.DropExisting {
+		args = append(args, "--clean")
+	}
+	if req.CreateDatabase {
+		args = append(args, "--create")
+	}
+	if req.NoOwner {
+		args = append(args, "--no-owner")
+	}
+	if req.NoPrivileges {
+		args = append(args, "--no-privileges")
+	}
+
+	// Add backup file
+	args = append(args, backupPath)
+
+	cmd := exec.Command("pg_restore", args...)
+
+	// Set password via environment variable
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", password))
+
+	// Execute command
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("pg_restore failed: %w, output: %s", err, string(output))
+	}
+
+	return nil
+}
+
+// downloadFromObjectStorage downloads a file from object storage
+func (s *PostgresBackupService) downloadFromObjectStorage(storageInstanceID uint, bucket, key string) (string, error) {
+	// Get storage instance
+	storageInstance, err := s.rustfsRepo.FindByID(storageInstanceID)
+	if err != nil {
+		return "", fmt.Errorf("storage instance not found: %w", err)
+	}
+
+	// Create RustFS service to get MinIO client
+	rustfsService := NewRustFSService()
+	client, err := rustfsService.GetClient(storageInstance)
+	if err != nil {
+		return "", fmt.Errorf("failed to create S3 client: %w", err)
+	}
+
+	// Create temp file
+	tempFile, err := os.CreateTemp("", "restore-*.dump")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer tempFile.Close()
+
+	// Download from S3
+	ctx := context.Background()
+	object, err := client.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to get object from S3: %w", err)
+	}
+	defer object.Close()
+
+	// Copy to temp file
+	if _, err := io.Copy(tempFile, object); err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to download file: %w", err)
+	}
+
+	return tempFile.Name(), nil
+}
+
+// downloadFromVPS downloads a file from VPS
+func (s *PostgresBackupService) downloadFromVPS(vpsInstanceID uint, remotePath string) (string, error) {
+	// Get VPS instance
+	vpsInstance, err := s.vpsRepo.GetByID(vpsInstanceID)
+	if err != nil {
+		return "", fmt.Errorf("VPS instance not found: %w", err)
+	}
+
+	// Decrypt VPS password
+	password, err := s.decrypt(vpsInstance.Password)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt VPS password: %w", err)
+	}
+
+	// Create temp file
+	tempFile, err := os.CreateTemp("", "restore-*.dump")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tempFile.Close()
+
+	// Use scp command to download
+	cmd := exec.Command("scp",
+		"-o", "StrictHostKeyChecking=no",
+		fmt.Sprintf("%s@%s:%s", vpsInstance.Username, vpsInstance.Host, remotePath),
+		tempFile.Name(),
+	)
+
+	cmd.Env = append(os.Environ(), fmt.Sprintf("SSHPASS=%s", password))
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("scp failed: %w, output: %s", err, string(output))
+	}
+
+	return tempFile.Name(), nil
 }

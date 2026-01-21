@@ -7,8 +7,6 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ExclamationCircleIcon,
-  ShieldCheckIcon,
-  LockClosedIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
@@ -25,7 +23,6 @@ interface Backup {
   failMessage?: string;
   backupSizeMb: number;
   backupDurationMs: number;
-  encryption: 'NONE' | 'ENCRYPTED';
   createdAt: string;
 }
 
@@ -191,7 +188,7 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
       {/* Backups List */}
       {backups.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-          <ShieldCheckIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <CheckCircleIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No backups yet</h3>
           <p className="text-sm text-gray-600">
             Create your first backup to see it here
@@ -214,9 +211,6 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Duration
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Encryption
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
@@ -244,16 +238,6 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
                       {backup.backupDurationMs > 0
                         ? formatDuration(backup.backupDurationMs)
                         : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {backup.encryption === 'ENCRYPTED' ? (
-                        <span className="inline-flex items-center gap-1 text-sm text-green-700">
-                          <LockClosedIcon className="h-4 w-4" />
-                          Encrypted
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-500">None</span>
-                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
@@ -507,22 +491,6 @@ export default function BackupsList({ databaseId, databaseName }: BackupsListPro
                   {selectedBackup && selectedBackup.backupDurationMs > 0
                     ? formatDuration(selectedBackup.backupDurationMs)
                     : 'N/A'}
-                </span>
-              </div>
-            </div>
-
-            <div className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Encryption</span>
-                <span className={`text-sm font-semibold ${selectedBackup?.encryption === 'ENCRYPTED' ? 'text-green-700' : 'text-gray-500'}`}>
-                  {selectedBackup?.encryption === 'ENCRYPTED' ? (
-                    <span className="flex items-center gap-1">
-                      <LockClosedIcon className="h-4 w-4" />
-                      AES-256-GCM
-                    </span>
-                  ) : (
-                    'None'
-                  )}
                 </span>
               </div>
             </div>
