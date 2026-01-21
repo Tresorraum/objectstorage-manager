@@ -47,7 +47,7 @@ export default function Register() {
         <div>
           <div className="flex items-center gap-3 text-white">
             <ServerIcon className="h-10 w-10" />
-            <span className="text-2xl font-bold">Rückhalt</span>
+            <span className="text-2xl font-bold">Storage Manager</span>
           </div>
         </div>
         
@@ -56,7 +56,7 @@ export default function Register() {
             Start Managing Your<br />Storage Today
           </h1>
           <p className="text-lg text-indigo-100 mb-8">
-            Join thousands of users who trust Rückhalt for their backup needs.
+            Join thousands of users who trust Storage Manager for their backup needs.
           </p>
           
           {/* Features */}
@@ -116,7 +116,7 @@ export default function Register() {
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-2 mb-8">
             <ServerIcon className="h-8 w-8 text-indigo-600" />
-            <span className="text-xl font-bold text-gray-900">Rückhalt</span>
+            <span className="text-xl font-bold text-gray-900">Storage Manager</span>
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-8">
