@@ -46,10 +46,8 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route 
-        path="/" 
-        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Landing />} 
-      />
+      {/* Public routes - always accessible */}
+      <Route path="/" element={<Landing />} />
       <Route 
         path="/login" 
         element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} 
@@ -58,6 +56,8 @@ function AppRoutes() {
         path="/register" 
         element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} 
       />
+      
+      {/* Protected routes */}
       <Route
         path="/*"
         element={
@@ -69,7 +69,7 @@ function AppRoutes() {
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/activity-logs" element={<ActivityLogs />} />
-                {/* <Route path="/team" element={<Team />} /> */} {/* Commented out for future use */}
+                {/* <Route path="/team" element={<Team />} /> */}
                 <Route path="/integrations" element={<Integrations />} />
                 <Route path="/subscribe" element={<Subscribe />} />
                 <Route path="/settings" element={<Settings />} />
