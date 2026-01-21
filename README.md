@@ -1,6 +1,8 @@
-# RustFS Manager
+# Rückhalt
 
 A comprehensive backup management platform for object storage, PostgreSQL databases, and VPS servers. Built with Go, React, and TypeScript.
+
+**Rückhalt** (German for "backup/support") - Your data's backbone.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Go Version](https://img.shields.io/badge/go-1.23-blue.svg)
@@ -80,8 +82,8 @@ A comprehensive backup management platform for object storage, PostgreSQL databa
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/rustfs-manager.git
-cd rustfs-manager
+git clone https://github.com/yourusername/ruckhalt.git
+cd ruckhalt
 ```
 
 2. **Configure environment variables**
@@ -94,7 +96,7 @@ Edit `.env` and set your configuration:
 # Database
 DB_HOST=postgres
 DB_PORT=5432
-DB_NAME=rustfs_manager
+DB_NAME=ruckhalt
 DB_USER=postgres
 DB_PASSWORD=your_secure_password
 
@@ -356,8 +358,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 - **Documentation**: [Full documentation](DEPLOY.md)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/rustfs-manager/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/rustfs-manager/discussions)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/ruckhalt/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ruckhalt/discussions)
 
 ## Roadmap
 
@@ -381,7 +383,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - UI powered by [React](https://reactjs.org/)
 - Styled with [TailwindCSS](https://tailwindcss.com/)
 - Icons by [Heroicons](https://heroicons.com/)
+- Powered by [ZenDevz](https://zendevz.com)
+- Built in [NesoHQ](https://nesohq.org)
 
 ---
 
-Made with ❤️ by the RustFS Manager team
+Made with ❤️ by the Rückhalt team
