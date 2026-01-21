@@ -18,7 +18,6 @@ interface Backup {
   id: string;
   backupSizeMb: number;
   createdAt: string;
-  encryption: 'NONE' | 'ENCRYPTED';
 }
 
 interface RestoreBackupModalProps {
@@ -189,10 +188,6 @@ export default function RestoreBackupModal({
               <p>
                 <span className="font-medium">Size:</span>{' '}
                 {formatBytes(sourceBackup.backupSizeMb * 1024 * 1024)}
-              </p>
-              <p>
-                <span className="font-medium">Encryption:</span>{' '}
-                {sourceBackup.encryption === 'ENCRYPTED' ? 'Yes (AES-256-GCM)' : 'No'}
               </p>
             </div>
           </div>
@@ -477,7 +472,7 @@ export default function RestoreBackupModal({
             Restore Process
           </h4>
           <ol className="text-sm text-gray-700 space-y-2 list-decimal list-inside">
-            <li>Backup file will be downloaded and decrypted (if encrypted)</li>
+            <li>Backup file will be downloaded from source</li>
             <li>pg_restore will be executed with selected options</li>
             <li>Database objects will be recreated in the target database</li>
             <li>Data will be imported from the backup</li>

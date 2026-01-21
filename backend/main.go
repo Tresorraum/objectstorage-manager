@@ -136,6 +136,7 @@ func main() {
 				backups.POST("/:id/cancel", postgresBackupHandler.CancelBackup)
 				backups.POST("/:id/download-token", postgresBackupHandler.GenerateDownloadToken)
 				backups.GET("/:id/file", postgresBackupHandler.DownloadBackup)
+				backups.POST("/restore", postgresBackupHandler.RestoreBackup)
 			}
 
 			// Audit routes

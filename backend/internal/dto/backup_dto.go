@@ -7,7 +7,6 @@ type CreateBackupRequest struct {
 	VPSInstanceID           *uint  `json:"vps_instance_id"`
 	ObjectStorageInstanceID *uint  `json:"object_storage_instance_id"`
 	ObjectStorageBucket     string `json:"object_storage_bucket"`
-	Encryption              bool   `json:"encryption"`
 	CompressionLevel        int    `json:"compression_level" binding:"min=0,max=9"`
 }
 
@@ -35,9 +34,6 @@ type BackupResponse struct {
 	FailMessage      *string `json:"failMessage,omitempty"`
 	BackupSizeMb     float64 `json:"backupSizeMb"`
 	BackupDurationMs int64   `json:"backupDurationMs"`
-	Encryption       string  `json:"encryption"`
-	EncryptionSalt   *string `json:"encryptionSalt,omitempty"`
-	EncryptionIV     *string `json:"encryptionIV,omitempty"`
 	CreatedAt        string  `json:"createdAt"`
 }
 

@@ -201,3 +201,28 @@ func (h *PostgresBackupHandlerNew) DownloadBackup(c *gin.Context) {
 	// Stream file to response
 	c.DataFromReader(http.StatusOK, -1, "application/octet-stream", file, nil)
 }
+
+// RestoreBackup restores a backup to a target database
+func (h *PostgresBackupHandlerNew) RestoreBackup(c *gin.Context) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, dto.ErrorResponse{Error: "unauthorized"})
+		return
+	}
+	userID := userIDVal.(uint)
+
+	var req dto.RestoreBackupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	if err := h.backupService.RestoreBackup(userID, req); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Backup restored successfully",
+	})
+}
