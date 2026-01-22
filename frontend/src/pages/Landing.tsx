@@ -16,6 +16,8 @@ import {
   SparklesIcon,
   CubeTransparentIcon,
   CommandLineIcon,
+  CodeBracketIcon,
+  StarIcon,
 } from '@heroicons/react/24/outline';
 
 export default function Landing() {
@@ -170,7 +172,7 @@ export default function Landing() {
               Schedule, monitor, and restore with confidence.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-10 sm:mb-16 px-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8 px-4">
               <Link
                 to="/register"
                 className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 flex items-center justify-center gap-2 group"
@@ -179,11 +181,36 @@ export default function Landing() {
                 <ArrowRightIcon className="h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1 transition-transform" />
               </Link>
               <a
+                href="https://github.com/NesoHQ/storage-manager"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto bg-gray-900 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg hover:bg-gray-800 transition-all duration-200 hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                <CodeBracketIcon className="h-5 w-5" />
+                View on GitHub
+              </a>
+              <a
                 href="#features"
                 className="w-full sm:w-auto bg-white text-gray-700 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg border-2 border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-lg"
               >
                 Explore Features
               </a>
+            </div>
+
+            {/* GitHub Stats Badge */}
+            <div className="flex items-center justify-center gap-4 mb-10 sm:mb-16 px-4">
+              <a
+                href="https://github.com/NesoHQ/storage-manager"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 hover:shadow-md group"
+              >
+                <StarIcon className="h-4 w-4 text-yellow-500 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-medium text-gray-700">Star on GitHub</span>
+              </a>
+              <div className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-gray-200">
+                <span className="text-xs font-semibold text-gray-500">MIT License</span>
+              </div>
             </div>
 
             {/* Stats */}
@@ -423,7 +450,7 @@ export default function Landing() {
             Ready to Secure Your Data?
           </h2>
           <p className="text-base sm:text-xl text-blue-100 mb-6 sm:mb-10 px-4">
-            Join teams who trust Storage Manager for their backup needs
+            Join teams who trust Rückhalt for their backup needs. 100% open source.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4">
             <Link
@@ -433,6 +460,15 @@ export default function Landing() {
               Get Started Free
               <ArrowRightIcon className="h-4 w-4 sm:h-5 sm:w-5" />
             </Link>
+            <a
+              href="https://github.com/NesoHQ/storage-manager"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto bg-gray-900 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg hover:bg-gray-800 transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <CodeBracketIcon className="h-5 w-5" />
+              View on GitHub
+            </a>
             <Link
               to="/login"
               className="w-full sm:w-auto bg-blue-700 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-semibold text-base sm:text-lg border-2 border-blue-500 hover:bg-blue-800 transition-all duration-200"
@@ -452,28 +488,37 @@ export default function Landing() {
                 <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-1.5 sm:p-2 rounded-lg">
                   <CloudArrowUpIcon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 </div>
-                <span className="text-white font-bold text-sm sm:text-base">Storage Manager</span>
+                <span className="text-white font-bold text-sm sm:text-base">Rückhalt</span>
               </div>
-              <p className="text-xs sm:text-sm">
+              <p className="text-xs sm:text-sm mb-3">
                 Self-hosted backup solution for modern teams
               </p>
+              <a
+                href="https://github.com/NesoHQ/storage-manager"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-xs sm:text-sm text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <CodeBracketIcon className="h-4 w-4" />
+                Open Source on GitHub
+              </a>
             </div>
             
             <div>
               <h4 className="text-white font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Product</h4>
               <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
+                <li><a href="https://github.com/NesoHQ/storage-manager" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">GitHub</a></li>
+                <li><a href="https://github.com/NesoHQ/storage-manager#readme" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Documentation</a></li>
               </ul>
             </div>
             
             <div>
-              <h4 className="text-white font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Company</h4>
+              <h4 className="text-white font-semibold mb-3 sm:mb-4 text-sm sm:text-base">Community</h4>
               <ul className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+                <li><a href="https://github.com/NesoHQ/storage-manager/issues" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Issues</a></li>
+                <li><a href="https://github.com/NesoHQ/storage-manager/discussions" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Discussions</a></li>
+                <li><a href="https://github.com/NesoHQ/storage-manager/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">Contributing</a></li>
               </ul>
             </div>
             
