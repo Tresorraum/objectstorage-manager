@@ -82,8 +82,8 @@ A comprehensive backup management platform for object storage, PostgreSQL databa
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/ruckhalt.git
-cd ruckhalt
+git clone https://github.com/NesoHQ/storage-manager.git
+cd storage-manager
 ```
 
 2. **Configure environment variables**
@@ -357,9 +357,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Documentation**: [Full documentation](DEPLOY.md)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ruckhalt/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ruckhalt/discussions)
+- **Documentation**: [Full documentation](https://github.com/NesoHQ/storage-manager#readme)
+- **Issues**: [GitHub Issues](https://github.com/NesoHQ/storage-manager/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/NesoHQ/storage-manager/discussions)
 
 ## Roadmap
 
