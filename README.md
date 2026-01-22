@@ -1,4 +1,4 @@
-# storage manager
+# Rückhalt
 
 A comprehensive backup management platform for object storage, PostgreSQL databases, and VPS servers. Built with Go, React, and TypeScript.
 
