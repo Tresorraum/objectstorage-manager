@@ -2,7 +2,7 @@ name: Build and Push Client Image
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'client/**'
       - '.github/workflows/build-client.yml'
