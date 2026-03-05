@@ -1,4 +1,4 @@
-# Rukhalt - Backup Management System
+# Rückhalt - Backup Management System
 
 A comprehensive backup management system for PostgreSQL databases, VPS instances, and object storage with automated scheduling and monitoring.
 
