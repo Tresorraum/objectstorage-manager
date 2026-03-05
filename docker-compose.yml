@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rukhalt-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rukhalt_db
+      POSTGRES_USER: rukhalt_user
+      POSTGRES_PASSWORD: rukhalt_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-rukhalt_user} -d ${DB_NAME:-rukhalt_db}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - rukhalt-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: rukhalt-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - rukhalt-network
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: rukhalt-server
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: rukhalt_db
+      DB_USER: rukhalt_user
+      DB_PASSWORD: rukhalt_password
+      DB_SSL_MODE: disable
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      ENCRYPTION_KEY: dev-encryption-key-change-in-production
+      PORT: 8080
+      GIN_MODE: debug
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server:/app
+      - /app/tmp
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    networks:
+      - rukhalt-network
+    command: sh -c "goose -dir migrations postgres \"host=postgres port=5432 user=rukhalt_user password=rukhalt_password dbname=rukhalt_db sslmode=disable\" up && air -c .air.toml"
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: rukhalt-client
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://localhost:8080/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    networks:
+      - rukhalt-network
+
+  # Test PostgreSQL instance for backup testing
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: rukhalt-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - rukhalt-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  postgres_test_data:
+
+networks:
+  rukhalt-network:
+    driver: bridge

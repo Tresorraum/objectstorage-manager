@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: rukhalt-db-prod
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rukhalt-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: rukhalt-redis-prod
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - rukhalt-network
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: rukhalt-server:latest
+    container_name: rukhalt-server-prod
+    restart: always
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SSL_MODE: disable
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PORT: 8080
+      GIN_MODE: release
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    networks:
+      - rukhalt-network
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    image: rukhalt-client:latest
+    container_name: rukhalt-client-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - server
+    networks:
+      - rukhalt-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  rukhalt-network:
+    driver: bridge

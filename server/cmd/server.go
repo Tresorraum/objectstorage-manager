@@ -1,0 +1,238 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+	"rukhalt/internal/config"
+	"rukhalt/internal/handlers"
+	"rukhalt/internal/middleware"
+	"rukhalt/internal/models"
+	"rukhalt/internal/repository"
+	"rukhalt/internal/services"
+)
+
+func run(ctx context.Context, cfg *config.Config) error {
+	// Initialize database
+	db, err := initDatabase(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	// Initialize repositories
+	userRepo := repository.NewUserRepository(db)
+	instanceRepo := repository.NewInstanceRepository(db)
+	backupRepo := repository.NewBackupRepository(db)
+	dashboardRepo := repository.NewDashboardRepository(db)
+	auditRepo := repository.NewAuditRepository(db)
+	postgresRepo := repository.NewPostgresRepository(db)
+	vpsRepo := repository.NewVPSRepository(db)
+
+	// Get encryption key from environment
+	encryptionKey := os.Getenv("ENCRYPTION_KEY")
+	if encryptionKey == "" {
+		encryptionKey = "default-encryption-key-change-in-production"
+		log.Println("⚠️  WARNING: Using default encryption key. Set ENCRYPTION_KEY environment variable in production!")
+	}
+
+	// Initialize services
+	rustfsService := services.NewRustFSService()
+	userService := services.NewUserService(userRepo)
+	auditService := services.NewAuditService(auditRepo)
+	backupService := services.NewBackupService(backupRepo, instanceRepo, auditService)
+	dashboardService := services.NewDashboardService(dashboardRepo)
+	postgresService := services.NewPostgresService(postgresRepo, auditService, encryptionKey)
+	vpsService := services.NewVPSService(vpsRepo, auditService, encryptionKey)
+	postgresBackupService := services.NewPostgresBackupService(backupRepo, postgresRepo, vpsRepo, instanceRepo, encryptionKey)
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(userService)
+	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
+	backupHandler := handlers.NewBackupHandler(backupService)
+	postgresBackupHandler := handlers.NewPostgresBackupHandlerNew(postgresBackupService)
+	rustfsHandler := handlers.NewRustFSHandler(rustfsService, instanceRepo)
+	auditHandler := handlers.NewAuditHandler(auditService)
+	postgresHandler := handlers.NewPostgresHandler(postgresService)
+	postgresBackupHandlerOld := handlers.NewPostgresBackupHandler(postgresService, vpsService)
+	vpsHandler := handlers.NewVPSHandler(vpsService)
+
+	// Setup Gin router
+	r := gin.Default()
+
+	// CORS middleware
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000", "http://frontend", "http://localhost:3001"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
+
+	// Health check
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "healthy", "version": "1.0.0"})
+	})
+
+	// API routes
+	api := r.Group("/api/v1")
+	{
+		// Authentication routes
+		auth := api.Group("/auth")
+		{
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/refresh", authHandler.RefreshToken)
+		}
+
+		// Protected routes
+		protected := api.Group("/")
+		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuditMiddleware(auditService))
+		{
+			// Dashboard routes
+			dashboard := protected.Group("/dashboard")
+			{
+				dashboard.GET("/stats", dashboardHandler.GetStats)
+				dashboard.GET("/metrics", dashboardHandler.GetMetrics)
+				dashboard.GET("/alerts", dashboardHandler.GetAlerts)
+			}
+
+			// RustFS management routes
+			rustfs := protected.Group("/rustfs")
+			{
+				rustfs.GET("/instances", rustfsHandler.ListInstances)
+				rustfs.POST("/instances", rustfsHandler.CreateInstance)
+				rustfs.GET("/instances/:id", rustfsHandler.GetInstance)
+				rustfs.PUT("/instances/:id", rustfsHandler.UpdateInstance)
+				rustfs.DELETE("/instances/:id", rustfsHandler.DeleteInstance)
+				rustfs.GET("/instances/:id/buckets", rustfsHandler.ListBuckets)
+				rustfs.GET("/instances/:id/users", rustfsHandler.ListUsers)
+			}
+
+			// Backup routes (scheduled backups)
+			backup := protected.Group("/backup")
+			{
+				backup.GET("/jobs", backupHandler.ListJobs)
+				backup.POST("/jobs", backupHandler.CreateJob)
+				backup.GET("/jobs/:id", backupHandler.GetJob)
+				backup.PUT("/jobs/:id", backupHandler.UpdateJob)
+				backup.DELETE("/jobs/:id", backupHandler.DeleteJob)
+				backup.POST("/jobs/:id/run", backupHandler.RunJob)
+				backup.POST("/restore", backupHandler.RestoreBackup)
+			}
+
+			// PostgreSQL backup routes
+			backups := protected.Group("/backups")
+			{
+				backups.POST("", postgresBackupHandler.CreateBackup)
+				backups.GET("", postgresBackupHandler.GetBackups)
+				backups.DELETE("/:id", postgresBackupHandler.DeleteBackup)
+				backups.POST("/:id/cancel", postgresBackupHandler.CancelBackup)
+				backups.POST("/:id/download-token", postgresBackupHandler.GenerateDownloadToken)
+				backups.GET("/:id/file", postgresBackupHandler.DownloadBackup)
+				backups.POST("/restore", postgresBackupHandler.RestoreBackup)
+			}
+
+			// Audit routes
+			audit := protected.Group("/audit")
+			{
+				audit.GET("/logs", auditHandler.GetLogs)
+				audit.GET("/logs/me", auditHandler.GetUserLogs)
+				audit.GET("/stats", auditHandler.GetStats)
+			}
+
+			// PostgreSQL routes
+			postgres := protected.Group("/postgres")
+			{
+				postgres.GET("/instances", postgresHandler.GetInstances)
+				postgres.POST("/instances", postgresHandler.CreateInstance)
+				postgres.GET("/instances/:id", postgresHandler.GetInstance)
+				postgres.PUT("/instances/:id", postgresHandler.UpdateInstance)
+				postgres.DELETE("/instances/:id", postgresHandler.DeleteInstance)
+				postgres.POST("/instances/:id/test", postgresHandler.TestConnection)
+				postgres.POST("/backup", postgresBackupHandlerOld.CreateBackup)
+			}
+
+			// VPS routes
+			vps := protected.Group("/vps")
+			{
+				vps.GET("/instances", vpsHandler.GetInstances)
+				vps.POST("/instances", vpsHandler.CreateInstance)
+				vps.GET("/instances/:id", vpsHandler.GetInstance)
+				vps.PUT("/instances/:id", vpsHandler.UpdateInstance)
+				vps.DELETE("/instances/:id", vpsHandler.DeleteInstance)
+				vps.POST("/instances/:id/test", vpsHandler.TestConnection)
+			}
+		}
+	}
+
+	// Create HTTP server
+	srv := &http.Server{
+		Addr:         ":" + cfg.Server.Port,
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("✅ Server listening on port %s", cfg.Server.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	<-ctx.Done()
+
+	// Graceful shutdown
+	log.Println("🛑 Shutting down server...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("server forced to shutdown: %w", err)
+	}
+
+	return nil
+}
+
+func initDatabase(cfg *config.Config) (*gorm.DB, error) {
+	dsn := cfg.Database.ConnectionString()
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Note: We no longer use AutoMigrate - migrations are handled by goose
+	// Verify connection
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database instance: %w", err)
+	}
+
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Set connection pool settings
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	log.Println("✅ Database connection established")
+	return db, nil
+}
+
+// Ensure models are imported for type checking
+var _ = models.User{}
